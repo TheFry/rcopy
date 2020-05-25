@@ -43,10 +43,10 @@ void *smemset(void *s, int c, size_t n){
 }
 
 void *srealloc(void *ptr, size_t size){
-   void *new = NULL;
-   new = realloc(ptr, size);
+   void *new_ptr = NULL;
+   new_ptr = realloc(ptr, size);
 
-   if(new == NULL){
+   if(new_ptr == NULL){
       perror("realloc");
       exit(-1);
    }
