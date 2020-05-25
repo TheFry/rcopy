@@ -51,7 +51,7 @@ void *srealloc(void *ptr, size_t size){
       exit(-1);
    }
 
-   return new;
+   return new_ptr;
 }
 
 
