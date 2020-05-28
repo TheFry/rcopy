@@ -7,12 +7,12 @@ LIBS += libcpe464.2.20.a -lstdc++ -ldl
 SRC = networks.c  networks.h gethostbyname.c gethostbyname.h packet.c packet.h
 OBJS = networks.o gethostbyname.o packet.o safemem.o
 
-all:  udpClient udpServer
+all:  rcopy server
 
-udpClient: udpClient.c $(OBJS)
+rcopy: rcopy.c $(OBJS)
 	$(CC) $(CFLAGS) -o udpClient udpClient.c $(OBJS) $(LIBS)
 
-udpServer: udpServer.c $(OBJS)
+server: server.c $(OBJS)
 	$(CC) $(CFLAGS) -o udpServer udpServer.c $(OBJS) $(LIBS)
 	
 .c.o: $SRC
