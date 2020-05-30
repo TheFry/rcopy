@@ -2,14 +2,17 @@
 #include "packet.h"
 #include "safemem.h"
 #include "checksum.h"
+#include <stdint.h>
 
 
 
-int build_data_pdu(uint8_t *buffer, uint32_t sequence, uint8_t flag, uint8_t *payload, int data_len){
+int build_data_pdu(uint8_t *buffer, uint32_t sequence,
+                   uint8_t *payload, int data_len){
+
    unsigned short check_val = 0;
    struct pdu_header *header = (struct pdu_header *)buffer;
 
-   build_header(buffer, sequence, flag);
+   build_header(buffer, sequence, DATA_FLAG);
    smemcpy(buffer + HEADER_LEN, payload, data_len);
    
    check_val = in_cksum((unsigned short *)buffer, HEADER_LEN + data_len);
@@ -17,6 +20,40 @@ int build_data_pdu(uint8_t *buffer, uint32_t sequence, uint8_t flag, uint8_t *pa
 
    return(HEADER_LEN + data_len);
 }
+
+/* Init packet header:
+ * Normal pdu header + name_len + name + wsize + bs
+ */
+int build_init_pdu(uint8_t *buffer, uint32_t seq, char *file,
+                   uint8_t name_len, uint32_t wsize, uint32_t bs){
+
+   struct pdu_header *header = (struct pdu_header *)buffer;
+   unsigned short check_val = 0;
+   uint8_t *ptr = buffer + HEADER_LEN;
+   uint32_t val = 0;
+
+   int buff_size = 0;
+
+   build_header(buffer, seq, INIT_FLAG);
+
+   smemcpy(ptr, &name_len, sizeof(name_len));
+   ptr += sizeof(name_len);
+   smemcpy(ptr, file, name_len);
+   ptr += name_len;
+   val = htonl(wsize);
+   smemcpy(ptr, &val, sizeof(val));
+   ptr += sizeof(val);
+   val = htonl(bs);
+   smemcpy(ptr, &val, sizeof(val));
+   ptr += sizeof(val);
+   buff_size = (uintptr_t)ptr - (uintptr_t)buffer;
+   check_val = in_cksum((unsigned short *)buffer, buff_size);
+   smemcpy(header->crc, &check_val, sizeof(uint8_t) * 2);
+   return(buff_size);
+}
+
+
+int 
 
 
 void build_header(uint8_t *buffer, uint32_t sequence, uint8_t flag){
@@ -38,6 +75,9 @@ int validate_checksum(uint8_t *buffer, int len){
    check_val = in_cksum((unsigned short *)buffer, len);
    return check_val;
 }
+
+
+
 /* Print the buffer in hex byte by byte
  * Packet len is in network order
  */

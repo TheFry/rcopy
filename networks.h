@@ -16,6 +16,17 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <math.h>
+#include "packet.h"
+
+struct rcopy_args{
+   char remote[MAX_NAME];
+   char local[MAX_NAME];
+   int wsize;
+   int buff_size;
+   double err_rate;
+   char hostname[MAX_NAME];
+   int port;
+} __attribute__((packed));
 
 #define BACKLOG 10
 

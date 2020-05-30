@@ -35,6 +35,7 @@ int main ( int argc, char *argv[]  )
 	return 0;
 }
 
+
 void processClient(int socketNum)
 {
 	int dataLen = 0; 
@@ -52,12 +53,9 @@ void processClient(int socketNum)
 		printIPInfo(&client);
 		print_buff((uint8_t *)buffer, dataLen);
 
-		// just for fun send back to client number of bytes received
-		//sprintf(buffer, "bytes: %d", dataLen);
-		//safeSendto(socketNum, buffer, strlen(buffer)+1, 0, (struct sockaddr *) & client, clientAddrLen);
-
 	}
 }
+
 
 int checkArgs(int argc, char *argv[])
 {

@@ -20,6 +20,7 @@
 #include "cpe464.h"
 #include "packet.h"
 #include "table.h"
+#include "safemem.h"
 
 #define MAXBUF 80
 #define xstr(a) str(a)
@@ -27,19 +28,20 @@
 
 void talkToServer(int socketNum, struct sockaddr_in6 * server);
 int getData(char * buffer);
-int checkArgs(int argc, char * argv[], double *err_rate);
+struct rcopy_args checkArgs(int argc, char * argv[]);
+void print_args(struct rcopy_args args);
 
 
 int main (int argc, char *argv[])
- {
+{
 	int socketNum = 0;				
 	struct sockaddr_in6 server;		// Supports 4 and 6 but requires IPv6 struct
-	int portNumber = 0;
-	double err_rate = 0;
-	
-	portNumber = checkArgs(argc, argv, &err_rate);
-	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
-	socketNum = setupUdpClientToServer(&server, argv[1], portNumber);
+	struct rcopy_args args;
+
+	args = checkArgs(argc, argv);
+	print_args(args);
+	sendtoErr_init(args.err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
+	socketNum = setupUdpClientToServer(&server, args.hostname, args.port);
 	talkToServer(socketNum, &server);
 	
 	close(socketNum);
@@ -61,7 +63,7 @@ void talkToServer(int socketNum, struct sockaddr_in6 * server)
 	while (buffer[0] != '.')
 	{
 		dataLen = getData(buffer);
-		dataLen = build_data_pdu(pdu, i, 4, (uint8_t *)buffer, dataLen);
+		dataLen = build_init_pdu(pdu, i, "test\0", 5, 5, 500);
 
 
    	print_buff(pdu, dataLen);
@@ -72,6 +74,7 @@ void talkToServer(int socketNum, struct sockaddr_in6 * server)
 		if(sent_len == 0){
 			printf("No data sent, check host/port\n");
 		}
+
 		i++;
 		//safeRecvfrom(socketNum, buffer, MAXBUF, 0, (struct sockaddr *) server, &serverAddrLen);
 		
@@ -93,29 +96,35 @@ int getData(char * buffer)
 	return((strlen(buffer) + 1));
 }
 
-int checkArgs(int argc, char * argv[], double *err_rate){
-	int portNumber = 0;
+struct rcopy_args checkArgs(int argc, char * argv[]){
+	struct rcopy_args args;
 	
 	/* check command line arguments  */
-	if (argc > 4 || argc < 3){
-		printf("Usage: %s host-name port-number [optional error rate between 0 and 1]\n", argv[0]);
-		exit(1);
+	if (argc != 8){
+		printf("Usage: %s remote-filename\nlocal-filename\nwindow-size\nbuffer-size\nerror-rate\nhost-name\nport-number\n", argv[0]);
+		exit(-1);
 	}
 
-	/* set error rate */
-	if(argc == 4){
-		*err_rate = strtod(argv[3], NULL);
-		
-		if(*err_rate <= 0 || *err_rate > 1){
-			fprintf(stderr, "Bad error rate");
-			exit(1);
-		}
-	}
+	sstrcpy(args.remote, argv[1]);
+	sstrcpy(args.local, argv[2]);
+	args.wsize = atoi(argv[3]);
+	args.buff_size = atoi(argv[4]);
+	args.err_rate = atof(argv[5]);
+	sstrcpy(args.hostname, argv[6]);
+	args.port = atoi(argv[7]);
 
-	
-	/* Checks args and returns port number */
-	portNumber = atoi(argv[2]);
-	return portNumber;
+	return args;
+}
+
+
+void print_args(struct rcopy_args args){
+	printf("Remote: %s\n", args.remote);
+	printf("Local: %s\n", args.local);
+	printf("Wsize: %d\n", args.wsize);
+	printf("buff_size: %d\n", args.buff_size);
+	printf("err_rate: %f\n", args.err_rate);
+	printf("Host: %s\n", args.hostname);
+	printf("Port: %d\n", args.port);
 }
 
 

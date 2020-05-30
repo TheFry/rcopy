@@ -89,7 +89,8 @@ int deq(uint32_t seq, uint32_t rr){
 
    /* Sanity check */
    if(rr > upper){
-      fprintf(stderr, "RR greater than the upper window limit. This shouldn't happen (I think)\n");
+      fprintf(stderr, "RR greater than the upper window limit.\n");
+      return -1;
    }
 
    lower = rr;
