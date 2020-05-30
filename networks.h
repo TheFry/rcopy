@@ -18,7 +18,6 @@
 #include <math.h>
 
 #define BACKLOG 10
-#define MAX_BUFFER 1400
 
 //Safe sending and receiving 
 int safeRecv(int socketNum, void * buf, int len, int flags);

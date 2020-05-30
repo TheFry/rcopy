@@ -9,29 +9,39 @@
 
 static struct table_entry *table;
 static size_t size;
-static size_t num_elements;
-
+static uint32_t window_size; /* window size */
+static uint32_t current;
+static uint32_t upper;
+static uint32_t lower;
+static int table_index;
+int closed;
 
 /* Get memory for the table and init the memory
  */
-void init_table(){
+void init_table(int given_size){
    struct table_entry *entry;
    int i;
-   char empty[MAX_HANDLE] = "";
+   char empty[MAX_BUFF] = "";
 
+   if(given_size == -1){ given_size = DEFAULT_TABLE_SIZE; }
    /* Get memory and size values */
-   size = ENTRY_SIZE * DEFAULT_TABLE_SIZE;
-   num_elements = size / ENTRY_SIZE;
+   size = ENTRY_SIZE * window_size;
+   window_size = size / ENTRY_SIZE;
    table = (struct table_entry *)smalloc(size);
 
  
-   for(i = 0; i < num_elements; i++){
+   for(i = 0; i < window_size; i++){
       entry = &table[i];
-      entry->is_free = FREE;
-      entry->socket = -1;
-      smemcpy(entry->handle, empty, sizeof(empty));
+      entry->seq = 0;
+      entry->pdu_len = 0;
+      smemcpy(entry->pdu, empty, MAX_BUFF);
    }
 
+   current = 0;
+   lower = 0;
+   upper = lower + window_size;
+   table_index = 0;
+   closed = 0;
 }
 
 
@@ -45,133 +55,46 @@ void reset_table(){
 }
 
 
-/* Realloc the table, increasing size by TABLE_INCREMENT
- * Returns pointer to location of new memory
+/* Add packet to window */
+int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
+   if(closed){
+      fprintf(stderr, "Error adding seq: %lu\tWindow is closed\n", seq);
+      return -1;
+   } 
+   /* clear pdu entry */
+   smemset(table[table_index].pdu, '\0', pdu_len);
+
+   table[table_index].seq = seq;
+   smemcpy(table[table_index].pdu, pdu, pdu_len);
+   table_index = (table_index + 1) % window_size;
+   current += 1;
+
+   if(current == upper){
+      closed = 1;
+   }
+   return 0;
+}
+
+
+/* Slide upper and lower
+ * Don't change current
  */
-size_t expand_size(){
-   struct table_entry *temp;
-   int i;
-   size_t new_base = 0;
-   char empty[MAX_HANDLE] = "";
-   
+int deq(uint32_t seq, uint32_t rr){
+   int seq_table_index;
 
-   /* Location of new memory */
-   new_base = num_elements;
-   
-   /* Get memory */
-   size = size + (ENTRY_SIZE * TABLE_INCREMENT);
-   num_elements = size / ENTRY_SIZE;
-   table = (struct table_entry *)srealloc(table, size);
-
-   /* Init new memory */
-   for(i = 0; i < TABLE_INCREMENT; i++){
-      temp = &table[new_base + i];
-      temp->is_free = FREE;
-      temp->socket = -1;
-      memcpy(temp->handle, empty, sizeof(empty));
+   if((seq_table_index = get_entry(seq)) == -1){
+      fprintf(stderr, "Error getting entry for deq\n");
+      return -1;
    }
 
-   /* Return the start of the new memory */
-   return(new_base);
-}
-
-
-
-
-/* Check table for conflicts and add handles/sockets
- * Call expand_size if needed .
- * Return -1 if there is a handle collision and exit for sockets
- */
-int add_entry(char *handle, int socket){
-   int i;
-   struct table_entry *entry;
-   size_t new_mem;
-   
-   /* Check if handle/socket already exists */
-   for(i = 0; i < num_elements; i++){
-      entry = &table[i];
-      if(strcmp(handle, entry->handle) == 0){
-         fprintf(stderr, "Client %d: Handle already in table\n", socket);
-         return -1;
-      }
-      if(socket == entry->socket){
-         fprintf(stderr, "Client %d: Socket already in table\n", socket);
-         exit(-1);
-      }
+   /* Sanity check */
+   if(rr > upper){
+      fprintf(stderr, "RR greater than the upper window limit. This shouldn't happen (I think)\n");
    }
 
-   /* Find empty space */
-   for(i = 0; i < num_elements; i++){
-      entry = &table[i];
-      if(entry->is_free == FULL){
-         continue;
-      }
-      sstrcpy(entry->handle, handle);
-      entry->socket = socket;
-      entry->is_free = FULL;
-      return(0);
-   }
-
-   /* No empty space, increase table size */
-   new_mem = expand_size();
-   entry = &table[new_mem];
-   sstrcpy(entry->handle, handle);
-   entry->socket = socket;
-   entry->is_free = FULL;
-   return(0);
-}
-
-
-/* Checks table for entry and removes it 
- * If it does not exists, returns -1
- * Does not check for duplicates (there shouldn't be any) 
- */
-int remove_entry(int socket){
-   int i;
-   struct table_entry *entry;
-   char empty[MAX_HANDLE] = "";
-
-   if(socket == -1){
-      return 0;
-   }
-
-   for(i = 0; i < num_elements; i++){
-      entry = &table[i];
-      if(entry->socket == socket){
-         printf("Client %d: Removed from table\n", entry->socket);
-         smemcpy(entry->handle, empty, sizeof(entry));
-         entry->is_free = FREE;
-         entry->socket = -1;
-         return 0;
-      }
-   }
-
-   return(-1);
-}
-
-
-/* Use socket to get handle */
-int table_get_handle(int socket, char *handle){
-   int i;
-   for(i = 0; i < num_elements; i++){
-      if(table[i].socket == socket){
-         smemcpy(handle, table[i].handle, strlen(table[i].handle));
-         return(0);
-      }
-   }
-   return(-1);
-}
-
-
-/* Use handle to get socket */
-int table_get_socket(char *handle){
-   int i;
-   for(i = 0; i < num_elements; i++){
-      if((strcmp(handle, table[i].handle)) == 0){
-         return(table[i].socket);
-      }
-   }
-   return(-1);
+   lower = rr;
+   upper = lower + window_size;
+   return 0;
 }
 
 
@@ -179,36 +102,24 @@ void print_table(){
    int i;
    struct table_entry *entry;
 
-   printf("\n\nSocket Table:\n");
-   for(i = 0; i < num_elements; i++){
+   printf("\n\nTable:\n");
+   for(i = 0; i < window_size; i++){
       entry = &table[i];
       printf("Entry %d\n", i);
-      printf("\tSocket #: %d\n", entry->socket);
-      printf("\tHandle: %s\n", entry->handle);
-      printf("\tFree flag: %d\n\n", entry->is_free);
+      printf("Seq num #: %lu\n", entry->seq);
+      printf("Printing pdu...\n\n");
+      print_buff(entry->pdu, entry->pdu_len);
    }
 }
 
 
-uint32_t get_num_elements(){
-   int i;
-   uint32_t num = 0;
-
-   for(i = 0; i < num_elements; i++){
-      if(table[i].is_free == FULL){
-         num++;
+/* Get entry based on sequence number */
+int get_entry(uint32_t seq){
+   int i = 0;
+   for(i = 0; i < window_size; i++){
+      if(table[i].seq == seq){
+         return i;
       }
    }
-
-   return num;
-}
-
-
-void get_entry(size_t index, char *handle){
-   if(index >= num_elements){
-      fprintf(stderr, "Index too high\n");
-      return;
-   }
-
-   strcpy(handle, table[index].handle);
+   return -1;
 }

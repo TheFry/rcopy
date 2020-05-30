@@ -23,7 +23,7 @@
 int safeRecvfrom(int socketNum, void * buf, int len, int flags, struct sockaddr *srcAddr, int * addrLen)
 {
 	int returnValue = 0;
-	if ((returnValue = recvfrom(socketNum, buf, (size_t) len, flags, srcAddr, (socklen_t *) addrLen)) < 0)
+	if ((returnValue = recvfromErr(socketNum, buf, (size_t) len, flags, srcAddr, (socklen_t *) addrLen)) < 0)
 	{
 		perror("recvfrom: ");
 		exit(-1);

@@ -10,10 +10,10 @@ OBJS = networks.o gethostbyname.o packet.o safemem.o
 all:  rcopy server
 
 rcopy: rcopy.c $(OBJS)
-	$(CC) $(CFLAGS) -o udpClient udpClient.c $(OBJS) $(LIBS)
+	$(CC) $(CFLAGS) -o rcopy rcopy.c $(OBJS) $(LIBS)
 
 server: server.c $(OBJS)
-	$(CC) $(CFLAGS) -o udpServer udpServer.c $(OBJS) $(LIBS)
+	$(CC) $(CFLAGS) -o server server.c $(OBJS) $(LIBS)
 	
 .c.o: $SRC
 	gcc -c $(CFLAGS) $< -o $@ 
@@ -22,5 +22,5 @@ cleano:
 	rm -f *.o
 
 clean:
-	rm -f udpServer udpClient *.o
+	rm -f rcopy server *.o
 

@@ -19,6 +19,7 @@
 #include "networks.h"
 #include "cpe464.h"
 #include "packet.h"
+#include "table.h"
 
 #define MAXBUF 80
 #define xstr(a) str(a)
@@ -37,7 +38,7 @@ int main (int argc, char *argv[])
 	double err_rate = 0;
 	
 	portNumber = checkArgs(argc, argv, &err_rate);
-	sendtoErr_init(err_rate, DROP_OFF, FLIP_OFF, DEBUG_ON, RSEED_OFF);
+	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
 	socketNum = setupUdpClientToServer(&server, argv[1], portNumber);
 	talkToServer(socketNum, &server);
 	
@@ -51,21 +52,27 @@ void talkToServer(int socketNum, struct sockaddr_in6 * server)
 	int serverAddrLen = sizeof(struct sockaddr_in6);
 	//char * ipString = NULL;
 	int dataLen = 0; 
-	char buffer[MAXBUF+1];
-	uint8_t pdu[PDU_LEN] = "";
+	char buffer[MAX_BS] = "";
+	uint8_t pdu[MAX_BUFF] = "";
+	int sent_len = 0;
 	int i = 0;
 	
 	buffer[0] = '\0';
 	while (buffer[0] != '.')
 	{
 		dataLen = getData(buffer);
-		dataLen = build_pdu(pdu, i, 4, (uint8_t *)buffer, dataLen);
+		dataLen = build_data_pdu(pdu, i, 4, (uint8_t *)buffer, dataLen);
 
 
-		printf("Sent: %d\n", dataLen);
+   	print_buff(pdu, dataLen);
 	
-		safeSendto(socketNum, pdu, dataLen, 0, (struct sockaddr *) server, serverAddrLen);
-		
+		sent_len = safeSendto(socketNum, pdu, dataLen, 0, (struct sockaddr *) server, serverAddrLen);
+
+		printf("Sent: %d\n", sent_len);
+		if(sent_len == 0){
+			printf("No data sent, check host/port\n");
+		}
+		i++;
 		//safeRecvfrom(socketNum, buffer, MAXBUF, 0, (struct sockaddr *) server, &serverAddrLen);
 		
 		// print out bytes received

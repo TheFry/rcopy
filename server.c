@@ -42,6 +42,7 @@ void processClient(int socketNum)
 	struct sockaddr_in6 client;		
 	int clientAddrLen = sizeof(client);	
 	
+	printf("Ready for clients\n");
 	buffer[0] = '\0';
 	while (buffer[0] != '.')
 	{
