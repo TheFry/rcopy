@@ -21,12 +21,12 @@
 #include "packet.h"
 #include "table.h"
 #include "safemem.h"
+#include "pollLib.h"
 
-#define MAXBUF 80
 #define xstr(a) str(a)
 #define str(a) #a
 
-void talkToServer(int socketNum, struct sockaddr_in6 * server);
+void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args);
 int getData(char * buffer);
 struct rcopy_args checkArgs(int argc, char * argv[]);
 void print_args(struct rcopy_args args);
@@ -39,50 +39,63 @@ int main (int argc, char *argv[])
 	struct rcopy_args args;
 
 	args = checkArgs(argc, argv);
-	print_args(args);
 	sendtoErr_init(args.err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
 	socketNum = setupUdpClientToServer(&server, args.hostname, args.port);
-	talkToServer(socketNum, &server);
-	
+	initC(socketNum, &server, args);
 	close(socketNum);
 
 	return 0;
 }
 
-void talkToServer(int socketNum, struct sockaddr_in6 * server)
-{
+void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args){
 	int serverAddrLen = sizeof(struct sockaddr_in6);
-	//char * ipString = NULL;
 	int dataLen = 0; 
-	char buffer[MAX_BS] = "";
 	uint8_t pdu[MAX_BUFF] = "";
+	uint8_t recv_buff[MAX_BUFF] = "";
 	int sent_len = 0;
+	int recv_len = 0;
 	int i = 0;
-	
-	buffer[0] = '\0';
-	while (buffer[0] != '.')
-	{
-		dataLen = getData(buffer);
-		dataLen = build_init_pdu(pdu, i, "test\0", 5, 5, 500);
+	int flag;
 
+	setupPollSet();
+	addToPollSet(socketNum);
 
-   	print_buff(pdu, dataLen);
-	
-		sent_len = safeSendto(socketNum, pdu, dataLen, 0, (struct sockaddr *) server, serverAddrLen);
+	dataLen = build_init_pdu(pdu, args.remote, args.wsize, args.bs);
+	sent_len = safeSendto(socketNum, pdu, dataLen, 0,
+				  (struct sockaddr *)server, serverAddrLen);
+	i = 1;
 
-		printf("Sent: %d\n", sent_len);
-		if(sent_len == 0){
-			printf("No data sent, check host/port\n");
+	/* Send filename 10 times max */
+	while(i < 10){
+		if(pollCall(1) == socketNum){
+			recv_len = safeRecvfrom(socketNum, recv_buff, MAX_BUFF,
+											0, (struct sockaddr *) server, &serverAddrLen);
+			print_buff(recv_buff, recv_len);
+
+			if((flag = get_type(recv_buff, recv_len)) == BAD_FLAG){
+				fprintf(stderr, "Remote file doesn't exist on server\n");
+         	exit(-1);
+			}
+
+			if(flag == DATA_FLAG){
+				fprintf(stderr, "I'm ready for data!\n");
+				exit(-1);
+			}
+
+		}else{
+			fprintf(stderr, "No response yet...\n");
+			safeSendto(socketNum, pdu, dataLen, 0,
+						 (struct sockaddr *)server, serverAddrLen);
+			i += 1;
 		}
-
-		i++;
-		//safeRecvfrom(socketNum, buffer, MAXBUF, 0, (struct sockaddr *) server, &serverAddrLen);
-		
-		// print out bytes received
-		//ipString = ipAddressToString(server);
-		//printf("Server with ip: %s and port %d said it received %s\n", ipString, ntohs(server->sin6_port), buffer);
-	      
 	}
+	fprintf(stderr, "Never received data\n");
+	exit(-1);
+	// print out bytes received
+	//ipString = ipAddressToString(server);
+	//printf("Server with ip: %s and port %d said it received %s\n", ipString, ntohs(server->sin6_port), buffer);
+      
+
 }
 
 int getData(char * buffer)
@@ -91,7 +104,7 @@ int getData(char * buffer)
 	buffer[0] = '\0';
 	
 	printf("Enter the data to send: ");
-	scanf("%" xstr(MAXBUF) "[^\n]%*[^\n]", buffer);
+	scanf("%s" xstr(MAX_BUFF) "[^\n]%*[^\n]", buffer);
 	getc(stdin);  // eat the \n
 	return((strlen(buffer) + 1));
 }
@@ -108,7 +121,7 @@ struct rcopy_args checkArgs(int argc, char * argv[]){
 	sstrcpy(args.remote, argv[1]);
 	sstrcpy(args.local, argv[2]);
 	args.wsize = atoi(argv[3]);
-	args.buff_size = atoi(argv[4]);
+	args.bs = atoi(argv[4]);
 	args.err_rate = atof(argv[5]);
 	sstrcpy(args.hostname, argv[6]);
 	args.port = atoi(argv[7]);
@@ -121,13 +134,8 @@ void print_args(struct rcopy_args args){
 	printf("Remote: %s\n", args.remote);
 	printf("Local: %s\n", args.local);
 	printf("Wsize: %d\n", args.wsize);
-	printf("buff_size: %d\n", args.buff_size);
+	printf("buff_size: %d\n", args.bs);
 	printf("err_rate: %f\n", args.err_rate);
 	printf("Host: %s\n", args.hostname);
 	printf("Port: %d\n", args.port);
 }
-
-
-
-
-

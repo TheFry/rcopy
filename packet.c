@@ -5,6 +5,31 @@
 #include <stdint.h>
 
 
+void rcopy_parse_packet(uint8_t *buff, int len){
+   uint8_t flag = get_type(buff, len);
+
+   switch(flag){
+      case BAD_PACKET:
+         break;
+      default:
+         printf("\nNot defined\n");
+         print_buff(buff, len);
+         break;
+   }
+}
+
+
+uint8_t get_type(uint8_t *buffer, int len){
+   struct pdu_header *header = (struct pdu_header *)buffer;
+
+   if(validate_checksum(buffer, len)){
+      /* Bad checksum */
+      fprintf(stderr, "Bad packet\n");
+      return 0;
+   }
+   return header->flag;
+}
+
 
 int build_data_pdu(uint8_t *buffer, uint32_t sequence,
                    uint8_t *payload, int data_len){
@@ -21,20 +46,19 @@ int build_data_pdu(uint8_t *buffer, uint32_t sequence,
    return(HEADER_LEN + data_len);
 }
 
+
 /* Init packet header:
  * Normal pdu header + name_len + name + wsize + bs
  */
-int build_init_pdu(uint8_t *buffer, uint32_t seq, char *file,
-                   uint8_t name_len, uint32_t wsize, uint32_t bs){
-
+int build_init_pdu(uint8_t *buffer, char *file, uint32_t wsize, uint32_t bs){
    struct pdu_header *header = (struct pdu_header *)buffer;
    unsigned short check_val = 0;
    uint8_t *ptr = buffer + HEADER_LEN;
    uint32_t val = 0;
-
    int buff_size = 0;
+   uint8_t name_len = strlen(file);
 
-   build_header(buffer, seq, INIT_FLAG);
+   build_header(buffer, 0, INIT_FLAG);
 
    smemcpy(ptr, &name_len, sizeof(name_len));
    ptr += sizeof(name_len);
@@ -53,8 +77,17 @@ int build_init_pdu(uint8_t *buffer, uint32_t seq, char *file,
 }
 
 
-int 
+int build_bad_pdu(uint8_t *buffer){
+   struct pdu_header *header = (struct pdu_header *)buffer;
+   unsigned short check_val;
 
+   smemset(buffer, '\0', MAX_BUFF);
+   header->flag = BAD_FLAG;
+   header->sequence = 0;
+   check_val = in_cksum((unsigned short *)buffer, HEADER_LEN);
+   smemcpy(header->crc, &check_val, sizeof(check_val));
+   return HEADER_LEN;
+}
 
 void build_header(uint8_t *buffer, uint32_t sequence, uint8_t flag){
    struct pdu_header *pdu;
@@ -71,11 +104,9 @@ void build_header(uint8_t *buffer, uint32_t sequence, uint8_t flag){
 
 int validate_checksum(uint8_t *buffer, int len){
    unsigned short check_val;
-
    check_val = in_cksum((unsigned short *)buffer, len);
    return check_val;
 }
-
 
 
 /* Print the buffer in hex byte by byte
@@ -88,11 +119,11 @@ void print_buff(uint8_t *buff, int len){
    printf("Buffer Data Length: %u\n", len);
 
    if((validate_checksum(buff, len))){
-      printf("Checksum invalid, bad packet\n\n");
-      return;
+      printf("Checksum invalid, bad packet\n");
+   }else{
+      printf("Checksum valid!\n");
    }
 
-   printf("Checksum valid!\n");
    for(i= 0; i < len; i++){
       printf("%02x ", buff[i]);
       if(i == line_break){

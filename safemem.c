@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "safemem.h"
 
 
@@ -78,6 +79,7 @@ void sstrcpy(char *dest, const char *src){
    }
 }
 
+
 size_t sstrlen(char *str){
    size_t len;
    len = strlen(str);
@@ -87,4 +89,24 @@ size_t sstrlen(char *str){
       exit(-1);
    }
    return len;
+}
+
+
+int sfork(){
+   int pid;
+   if((pid = fork()) < 0){
+      perror("Server fork");
+      exit(-1);
+   }
+   return pid;
+}
+
+
+FILE* sfopen(char *path, char *mode){
+   FILE *my_file = fopen(path, mode);
+   if(my_file == NULL){
+      perror("fopen");
+      return NULL;
+   }
+   return my_file;
 }

@@ -15,11 +15,14 @@ struct pdu_header{
 #define DATA_FLAG 3
 #define INIT_FLAG 7
 #define BAD_FLAG 8
+#define BAD_PACKET 0
 
 void print_buff(uint8_t *buff, int len);
 int build_data_pdu(uint8_t *buffer, uint32_t seq, uint8_t *payload, int data_len);
 void build_header(uint8_t *buffer, uint32_t seq, uint8_t flag);
-int build_init_pdu(uint8_t *buffer, uint32_t seq, char *file,
-                   uint8_t name_len, uint32_t wsize, uint32_t bs);
+int build_init_pdu(uint8_t *buffer, char *file, uint32_t wsize, uint32_t bs);
 int validate_checksum(uint8_t *buffer, int len);
+void rcopy_parse_packet(uint8_t *buff, int socket);
+uint8_t get_type(uint8_t *buffer, int len);
+int build_bad_pdu(uint8_t *buffer);
 #endif

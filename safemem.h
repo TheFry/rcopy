@@ -7,4 +7,6 @@ void *srealloc(void *ptr, size_t size);
 void * sCalloc(size_t nmemb, size_t size);
 void sstrcpy(char *dest, const char *src);
 size_t sstrlen(char *str);
+int sfork();
+FILE* sfopen(char *path, char *mode);
 #endif

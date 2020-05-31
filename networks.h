@@ -22,13 +22,14 @@ struct rcopy_args{
    char remote[MAX_NAME];
    char local[MAX_NAME];
    int wsize;
-   int buff_size;
+   int bs;
    double err_rate;
    char hostname[MAX_NAME];
    int port;
 } __attribute__((packed));
 
 #define BACKLOG 10
+#define READ "r"
 
 //Safe sending and receiving 
 int safeRecv(int socketNum, void * buf, int len, int flags);
