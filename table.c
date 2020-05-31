@@ -14,11 +14,11 @@ static uint32_t current;
 static uint32_t upper;
 static uint32_t lower;
 static int table_index;
-int closed;
+int table_closed;
 
 /* Get memory for the table and init the memory
  */
-void init_table(int given_size){
+void init_table(uint32_t given_size){
    struct table_entry *entry;
    int i;
    char empty[MAX_BUFF] = "";
@@ -41,7 +41,7 @@ void init_table(int given_size){
    lower = 0;
    upper = lower + window_size;
    table_index = 0;
-   closed = 0;
+   table_closed = 0;
 }
 
 
@@ -57,8 +57,8 @@ void reset_table(){
 
 /* Add packet to window */
 int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
-   if(closed){
-      fprintf(stderr, "Error adding seq: %lu\tWindow is closed\n", seq);
+   if(table_closed){
+      fprintf(stderr, "Error adding seq: %u\tWindow is table_closed\n", seq);
       return -1;
    } 
    /* clear pdu entry */
@@ -70,7 +70,7 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
    current += 1;
 
    if(current == upper){
-      closed = 1;
+      table_closed = 1;
    }
    return 0;
 }
@@ -107,7 +107,7 @@ void print_table(){
    for(i = 0; i < window_size; i++){
       entry = &table[i];
       printf("Entry %d\n", i);
-      printf("Seq num #: %lu\n", entry->seq);
+      printf("Seq num #: %u\n", entry->seq);
       printf("Printing pdu...\n\n");
       print_buff(entry->pdu, entry->pdu_len);
    }

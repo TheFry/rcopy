@@ -24,7 +24,7 @@
 #include "pollLib.h"
 
 #define xstr(a) str(a)
-#define str(a) #a
+#define str(a) 
 
 void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args);
 int getData(char * buffer);
@@ -47,12 +47,13 @@ int main (int argc, char *argv[])
 	return 0;
 }
 
+
+/* Initialize the connection */
 void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args){
 	int serverAddrLen = sizeof(struct sockaddr_in6);
 	int dataLen = 0; 
 	uint8_t pdu[MAX_BUFF] = "";
 	uint8_t recv_buff[MAX_BUFF] = "";
-	int sent_len = 0;
 	int recv_len = 0;
 	int i = 0;
 	int flag;
@@ -61,8 +62,8 @@ void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args){
 	addToPollSet(socketNum);
 
 	dataLen = build_init_pdu(pdu, args.remote, args.wsize, args.bs);
-	sent_len = safeSendto(socketNum, pdu, dataLen, 0,
-				  (struct sockaddr *)server, serverAddrLen);
+	safeSendto(socketNum, pdu, dataLen, 0,
+				 (struct sockaddr *)server, serverAddrLen);
 	i = 1;
 
 	/* Send filename 10 times max */
@@ -70,7 +71,6 @@ void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args){
 		if(pollCall(1) == socketNum){
 			recv_len = safeRecvfrom(socketNum, recv_buff, MAX_BUFF,
 											0, (struct sockaddr *) server, &serverAddrLen);
-			print_buff(recv_buff, recv_len);
 
 			if((flag = get_type(recv_buff, recv_len)) == BAD_FLAG){
 				fprintf(stderr, "Remote file doesn't exist on server\n");
@@ -82,24 +82,24 @@ void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args){
 				exit(-1);
 			}
 
+			/* Bad packet, resend */
+			safeSendto(socketNum, pdu, dataLen, 0,
+						 (struct sockaddr *)server, serverAddrLen);
+
+			i += 1;
 		}else{
-			fprintf(stderr, "No response yet...\n");
+			fprintf(stderr, "No response\n");
 			safeSendto(socketNum, pdu, dataLen, 0,
 						 (struct sockaddr *)server, serverAddrLen);
 			i += 1;
 		}
 	}
 	fprintf(stderr, "Never received data\n");
-	exit(-1);
-	// print out bytes received
-	//ipString = ipAddressToString(server);
-	//printf("Server with ip: %s and port %d said it received %s\n", ipString, ntohs(server->sin6_port), buffer);
-      
-
+	exit(-1); 
 }
 
-int getData(char * buffer)
-{
+
+int getData(char * buffer){
 	/* Read in the data */
 	buffer[0] = '\0';
 	

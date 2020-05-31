@@ -17,28 +17,40 @@
 #include "packet.h"
 #include "table.h"
 #include "safemem.h"
+#include "pollLib.h"
+#include "cpe464.h"
+
+
+/* Maximum amount of packets to send before bailing */
+#define MAX_SEND 10
 
 void processClient(int socketNum);
-int checkArgs(int argc, char *argv[]);
-void server_parse_packet(uint8_t *buffer, int len, struct sockaddr_in6 *client);
-void setup_child(struct sockaddr_in6 *client, uint8_t *buffer, int len);
+void checkArgs(int argc, char *argv[], int *port, double *err_rate);
 
-int main (int argc, char *argv[]){ 
+void server_parse_packet(uint8_t *buffer, int len,
+								 struct sockaddr_in6 *client, int sock);
+
+void setup_child(struct sockaddr_in6 *client,
+					  uint8_t *buffer, int len, int sock);
+
+extern int table_closed;
+int main(int argc, char *argv[]){ 
 	int socketNum = 0;				
 	int portNumber = 0;
+	double err_rate = 0;
 
-	portNumber = checkArgs(argc, argv);
+	checkArgs(argc, argv, &portNumber, &err_rate);
+	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
+	
 	socketNum = udpServerSetup(portNumber);
 	processClient(socketNum);
 
 	close(socketNum);
-	
 	return 0;
 }
 
 
-void processClient(int socketNum)
-{
+void processClient(int socketNum){
 	int recv_len = 0; 
 	uint8_t buffer[MAX_BUFF] = "";	  
 	struct sockaddr_in6 client;		
@@ -48,11 +60,12 @@ void processClient(int socketNum)
 	buffer[0] = '\0';
 	while(1){
 		smemset(buffer, '\0', MAX_BUFF);
-		recv_len = safeRecvfrom(socketNum, buffer, MAX_BUFF, 0, (struct sockaddr *) &client, &clientAddrLen);
+		recv_len = safeRecvfrom(socketNum, buffer, MAX_BUFF, 0,
+									  (struct sockaddr *)&client, &clientAddrLen);
 		
 		printf("Received message from client with ");
 		printIPInfo(&client);
-		server_parse_packet(buffer, recv_len, &client);
+		server_parse_packet(buffer, recv_len, &client, socketNum);
 
 		//just for fun send back to client number of bytes received
 		//sprintf(buffer, "bytes: %d", dataLen);
@@ -62,7 +75,8 @@ void processClient(int socketNum)
 
 
 /* Check for init packet and fork if needed */
-void server_parse_packet(uint8_t *buffer, int len, struct sockaddr_in6 *client){
+void server_parse_packet(uint8_t *buffer, int len,
+								 struct sockaddr_in6 *client, int sock){
 	uint8_t type = get_type(buffer, len);
 
 	if(type != INIT_FLAG){
@@ -70,55 +84,91 @@ void server_parse_packet(uint8_t *buffer, int len, struct sockaddr_in6 *client){
 		return;
 	}
 
-	setup_child(client, buffer, len);
+	setup_child(client, buffer, len, sock);
 }
 
 
-void setup_child(struct sockaddr_in6 *client, uint8_t *buffer, int len){
+/* Call fork and get a new socket. Contact client through this. */
+void setup_child(struct sockaddr_in6 *client,
+					  uint8_t *buffer, int len, int sock){
+
 	uint8_t *ptr = buffer + HEADER_LEN;
 	uint8_t name_len;
-	uint32_t seq_num;
 	uint32_t wsize;
 	uint32_t bs;
 	char filename[MAX_NAME] = "";
 	uint8_t send_buffer[MAX_BUFF] = "";
 	int buff_len = 0;
-	int socketNum;
 	int clientAddrLen = sizeof(struct sockaddr_in6);
-	if(sfork()){ return; }
-	socketNum = socket(AF_INET6, SOCK_DGRAM, 0);
 
+	/* New process */
+	if(sfork()){ return; }
+
+	/* Get filename */
 	smemcpy(&name_len, ptr, sizeof(uint8_t));
 	ptr += sizeof(uint8_t);
 	smemcpy(filename, ptr, name_len);
 	ptr += name_len;
 
+	/* Try to open file */
 	if(sfopen(filename, READ) == NULL){
 		buff_len = build_bad_pdu(send_buffer);
-		print_buff(send_buffer, buff_len);
-		safeSendto(socketNum, send_buffer, buff_len,
+
+		/* Send error packet. Does not check for response because client
+		 * will eventually fail, and the file doesn't even exist. Send on
+		 * original socket so client can resend */
+		safeSendto(sock, send_buffer, buff_len,
 					  0, (struct sockaddr *)client, clientAddrLen);
 		exit(-1);
 	}
 
+	/* Get wsize and block size */
+	smemcpy(&wsize, ptr, sizeof(wsize));
+	wsize = ntohl(wsize);
+	ptr += sizeof(wsize);
+	smemcpy(&bs, ptr, sizeof(bs));
+	bs = ntohl(bs);
 }
 
 
-int checkArgs(int argc, char *argv[])
-{
-	// Checks args and returns port number
-	int portNumber = 0;
+/* Create new socket and send data to client */
+void send_data(FILE *f, struct sockaddr_in6 *client, uint32_t wsize, uint32_t bs){
+	int sock = socket(AF_INET6, SOCK_DGRAM, 0);
+	uint32_t seq = 0;
+	int timeout = 0;
 
-	if (argc > 2)
-	{
-		fprintf(stderr, "Usage %s [optional port number]\n", argv[0]);
+	init_table(wsize);
+	setupPollSet();
+	addToPollSet(sock);
+
+	while(timeout < MAX_SEND){
+		/*safeSendto(sock, send_buffer, buff_len,
+					  0, (struct sockaddr *)client, sizeof(struct sockaddr_in6));
+		*/
+		/* Process incomming data */
+		if(pollCall(0) > 0){
+			//Do something with data here
+		}
+
+		/* Send data if not closed */
+		if(!table_closed){
+
+		}else{
+			timeout++;
+		}
+	}
+}
+
+
+/* Get err rate and port number */
+void checkArgs(int argc, char *argv[], int *portNumber, double *err_rate){
+	if (argc > 3 || argc < 2){
+		fprintf(stderr, "Usage %s error-rate [optional port number]\n", argv[0]);
 		exit(-1);
 	}
 	
-	if (argc == 2)
-	{
-		portNumber = atoi(argv[1]);
+	*err_rate = atof(argv[1]);
+	if(argc == 3){
+		*portNumber = atol(argv[2]);
 	}
-	
-	return portNumber;
 }

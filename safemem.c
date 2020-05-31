@@ -20,6 +20,7 @@ void *smemcpy(void *dest, const void *src, size_t n){
    return ptr;
 }
 
+
 void *smalloc(size_t size){
    void *ptr = NULL;
    ptr = malloc(size);
@@ -32,6 +33,7 @@ void *smalloc(size_t size){
    return ptr;
 }
 
+
 void *smemset(void *s, int c, size_t n){
    void *ptr = NULL;
    ptr = memset(s, c, n);
@@ -43,6 +45,7 @@ void *smemset(void *s, int c, size_t n){
 
    return ptr;
 }
+
 
 void *srealloc(void *ptr, size_t size){
    void *new_ptr = NULL;

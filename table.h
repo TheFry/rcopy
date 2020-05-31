@@ -21,7 +21,7 @@ struct table_entry{
    int pdu_len;
 } __attribute__((packed));
 
-void init_table(int size);
+void init_table(uint32_t size);
 void reset_table();
 void print_table();
 int get_entry(uint32_t seq);
