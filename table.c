@@ -23,9 +23,10 @@ void init_table(uint32_t given_size){
    int i;
    char empty[MAX_BUFF] = "";
 
+
    if(given_size == -1){ given_size = DEFAULT_TABLE_SIZE; }
    /* Get memory and size values */
-   size = ENTRY_SIZE * window_size;
+   size = ENTRY_SIZE * given_size;
    window_size = size / ENTRY_SIZE;
    table = (struct table_entry *)smalloc(size);
 
@@ -79,23 +80,22 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
 /* Slide upper and lower
  * Don't change current
  */
-int deq(uint32_t seq, uint32_t rr){
+void deq(uint32_t rr){
    int seq_table_index;
 
-   if((seq_table_index = get_entry(seq)) == -1){
+   if((seq_table_index = get_entry(rr)) == -1){
       fprintf(stderr, "Error getting entry for deq\n");
-      return -1;
+      exit(-1);
    }
 
    /* Sanity check */
    if(rr > upper){
       fprintf(stderr, "RR greater than the upper window limit.\n");
-      return -1;
+      exit(-1);
    }
 
    lower = rr;
    upper = lower + window_size;
-   return 0;
 }
 
 
@@ -123,4 +123,16 @@ int get_entry(uint32_t seq){
       }
    }
    return -1;
+}
+
+
+struct table_entry* get_srej(uint32_t srej){
+   int i = 0;
+   for(i = 0; i < window_size; i++){
+      if(table[i].seq == srej){
+         return &table[i];
+      }
+   }
+   fprintf(stderr, "Srej: Can't find it in the table\n");
+   return NULL;
 }

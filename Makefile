@@ -4,8 +4,8 @@
 CC = gcc
 CFLAGS= -g -Wall
 LIBS += libcpe464.2.20.a -lstdc++ -ldl
-SRC = networks.c  networks.h gethostbyname.c gethostbyname.h packet.c packet.h pollLib.c pollLib.h
-OBJS = networks.o gethostbyname.o packet.o safemem.o pollLib.o
+SRC = networks.c  networks.h gethostbyname.c gethostbyname.h packet.c packet.h pollLib.c pollLib.h table.c table.h
+OBJS = networks.o gethostbyname.o packet.o safemem.o pollLib.o table.o
 
 all:  rcopy server
 

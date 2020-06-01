@@ -2,7 +2,27 @@
 #include "packet.h"
 #include "safemem.h"
 #include "checksum.h"
+#include "table.h"
 #include <stdint.h>
+
+
+void server_parse_packet(uint8_t *buffer, int len){
+   uint8_t flag = get_type(buffer, len);
+
+   switch (flag){
+      case BAD_PACKET:
+         break;
+      case RR_FLAG:
+         server_process_rr(buffer, len);
+         break;
+      case SREJ_FLAG:
+         server_process_srej(buffer, len);
+         break;
+      default:
+         fprintf(stderr, "Unknown packet type. Ignoring\n");
+   }  
+}
+
 
 
 void rcopy_parse_packet(uint8_t *buff, int len){
@@ -27,19 +47,61 @@ uint8_t get_type(uint8_t *buffer, int len){
       fprintf(stderr, "Bad packet\n");
       return 0;
    }
+
    return header->flag;
 }
 
 
+int build_rr(uint8_t *buffer, uint32_t sequence, uint32_t rr){
+   build_header(buffer, sequence, RR_FLAG);
+   uint8_t *ptr = buffer + HEADER_LEN;
+
+   rr = htonl(rr);
+   smemcpy(ptr, &rr, sizeof(rr));
+   return ptr + sizeof(rr) - buffer;
+}
+
+
+int build_srej(uint8_t *buffer, uint32_t sequence, uint32_t srej){
+   build_header(buffer, sequence, SREJ_FLAG);
+   uint8_t *ptr = buffer + HEADER_LEN;
+   
+   srej = htonl(srej);
+   smemcpy(ptr, &srej, sizeof(srej));
+   return(ptr + sizeof(srej) - buffer);
+}
+
+
+void server_process_rr(uint8_t *buffer, int len){
+   uint8_t *ptr = buffer + HEADER_LEN;
+   uint32_t rr;
+
+   smemcpy(&rr, ptr, sizeof(rr));
+   rr = ntohl(rr);
+   deq(rr);
+}
+
+
+void server_process_srej(uint8_t *buffer, int len){
+   uint8_t *ptr = buffer + HEADER_LEN;
+   uint32_t srej;
+
+   smemcpy(&srej, ptr, sizeof(srej));
+   srej = ntohl(srej);
+   
+}
+
+
 int build_data_pdu(uint8_t *buffer, uint32_t sequence,
-                   uint8_t *payload, int data_len){
+                   uint8_t *payload, size_t data_len){
 
    unsigned short check_val = 0;
    struct pdu_header *header = (struct pdu_header *)buffer;
+   uint8_t *ptr = (uintptr_t)buffer + HEADER_LEN;
 
    build_header(buffer, sequence, DATA_FLAG);
-   smemcpy(buffer + HEADER_LEN, payload, data_len);
-   
+   smemcpy(ptr, payload, data_len);
+
    check_val = in_cksum((unsigned short *)buffer, HEADER_LEN + data_len);
    smemcpy(header->crc, &check_val, sizeof(uint8_t) * 2);
 
@@ -59,7 +121,7 @@ int build_init_pdu(uint8_t *buffer, char *file, uint32_t wsize, uint32_t bs){
    uint8_t name_len = strlen(file);
 
    build_header(buffer, 0, INIT_FLAG);
-
+   print_buff(buffer, HEADER_LEN);
    smemcpy(ptr, &name_len, sizeof(name_len));
    ptr += sizeof(name_len);
    smemcpy(ptr, file, name_len);
@@ -89,11 +151,11 @@ int build_bad_pdu(uint8_t *buffer){
    return HEADER_LEN;
 }
 
+
 void build_header(uint8_t *buffer, uint32_t sequence, uint8_t flag){
    struct pdu_header *pdu;
 
    smemset(buffer, '\0', MAX_BUFF);
-
    pdu = (struct pdu_header *)buffer;
    pdu->sequence = htonl(sequence);
    pdu->flag = flag;

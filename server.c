@@ -27,13 +27,16 @@
 void processClient(int socketNum);
 void checkArgs(int argc, char *argv[], int *port, double *err_rate);
 
-void server_parse_packet(uint8_t *buffer, int len,
+void process_init(uint8_t *buffer, int len,
 								 struct sockaddr_in6 *client, int sock);
 
 void setup_child(struct sockaddr_in6 *client,
 					  uint8_t *buffer, int len, int sock);
 
-extern int table_closed;
+void send_data(FILE *f, struct sockaddr_in6 *client, uint32_t wsize, uint32_t bs);
+void send_data_pdu(FILE *f, uint32_t seq, uint32_t bs, struct sockaddr *addr, int sock);
+
+
 int main(int argc, char *argv[]){ 
 	int socketNum = 0;				
 	int portNumber = 0;
@@ -63,19 +66,15 @@ void processClient(int socketNum){
 		recv_len = safeRecvfrom(socketNum, buffer, MAX_BUFF, 0,
 									  (struct sockaddr *)&client, &clientAddrLen);
 		
-		printf("Received message from client with ");
+		printf("Main: Received message from client with ");
 		printIPInfo(&client);
-		server_parse_packet(buffer, recv_len, &client, socketNum);
-
-		//just for fun send back to client number of bytes received
-		//sprintf(buffer, "bytes: %d", dataLen);
-		//safeSendto(socketNum, buffer, strlen(buffer)+1, 0, (struct sockaddr *) & client, clientAddrLen);
+		process_init(buffer, recv_len, &client, socketNum);
 	}
 }
 
 
 /* Check for init packet and fork if needed */
-void server_parse_packet(uint8_t *buffer, int len,
+void process_init(uint8_t *buffer, int len,
 								 struct sockaddr_in6 *client, int sock){
 	uint8_t type = get_type(buffer, len);
 
@@ -100,6 +99,8 @@ void setup_child(struct sockaddr_in6 *client,
 	uint8_t send_buffer[MAX_BUFF] = "";
 	int buff_len = 0;
 	int clientAddrLen = sizeof(struct sockaddr_in6);
+	FILE *f;
+
 
 	/* New process */
 	if(sfork()){ return; }
@@ -109,14 +110,13 @@ void setup_child(struct sockaddr_in6 *client,
 	ptr += sizeof(uint8_t);
 	smemcpy(filename, ptr, name_len);
 	ptr += name_len;
-
 	/* Try to open file */
-	if(sfopen(filename, READ) == NULL){
+	if((f = sfopen(filename, READ)) == NULL){
 		buff_len = build_bad_pdu(send_buffer);
 
 		/* Send error packet. Does not check for response because client
-		 * will eventually fail, and the file doesn't even exist. Send on
-		 * original socket so client can resend */
+		 * will eventually fail, and the file doesn't even exist. Send the
+		 * main server socket so client can resend */
 		safeSendto(sock, send_buffer, buff_len,
 					  0, (struct sockaddr *)client, clientAddrLen);
 		exit(-1);
@@ -128,35 +128,64 @@ void setup_child(struct sockaddr_in6 *client,
 	ptr += sizeof(wsize);
 	smemcpy(&bs, ptr, sizeof(bs));
 	bs = ntohl(bs);
+
+	send_data(f, client, wsize, bs);
 }
 
 
 /* Create new socket and send data to client */
 void send_data(FILE *f, struct sockaddr_in6 *client, uint32_t wsize, uint32_t bs){
 	int sock = socket(AF_INET6, SOCK_DGRAM, 0);
-	uint32_t seq = 0;
 	int timeout = 0;
+	int pdu_len = 0;
+	int did_recv = 0;
+	uint8_t file_data[MAX_BUFF];
+	uint8_t pdu[MAX_BUFF] = "";
+	uint32_t seq = 0;
+	struct sockaddr *addr = (struct sockaddr *)client;
 
+
+	smemset(file_data, '\0', bs);
 	init_table(wsize);
 	setupPollSet();
 	addToPollSet(sock);
 
+	send_data_pdu(f, seq, bs, addr, sock);
+	seq++;
 	while(timeout < MAX_SEND){
-		/*safeSendto(sock, send_buffer, buff_len,
-					  0, (struct sockaddr *)client, sizeof(struct sockaddr_in6));
-		*/
-		/* Process incomming data */
+
 		if(pollCall(0) > 0){
-			//Do something with data here
+			server_parse_packet(pdu, pdu_len);
+			timeout = 0;
+			did_recv = 1;
 		}
 
-		/* Send data if not closed */
-		if(!table_closed){
-
-		}else{
-			timeout++;
+		/* If closed and didn't recv anything then increment timeout */
+		if(table_closed){
+			if(!did_recv){
+				timeout++;
+				continue;
+			}
 		}
+		send_data_pdu(f, seq, bs, addr, sock);	
 	}
+}
+
+
+void send_data_pdu(FILE *f, uint32_t seq, uint32_t bs, struct sockaddr *addr, int sock){
+	size_t amount = 0;
+	uint8_t pdu[MAX_BUFF] = "";
+	uint8_t file_data[MAX_BUFF] = "";
+	int len;
+
+	if((amount = sfread(file_data, 1, bs, f)) == 0){
+		//Go to done function
+		fprintf(stderr, "Done with data\n");
+		return;
+	}
+	len = build_data_pdu(pdu, seq, file_data, amount);
+	safeSendto(sock, pdu, len, 0, addr, sizeof(struct sockaddr_in6));
+	enq(seq, pdu, len);
 }
 
 

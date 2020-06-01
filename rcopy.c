@@ -62,13 +62,14 @@ void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args){
 	addToPollSet(socketNum);
 
 	dataLen = build_init_pdu(pdu, args.remote, args.wsize, args.bs);
+
 	safeSendto(socketNum, pdu, dataLen, 0,
 				 (struct sockaddr *)server, serverAddrLen);
 	i = 1;
 
 	/* Send filename 10 times max */
 	while(i < 10){
-		if(pollCall(1) == socketNum){
+		if(pollCall(1000) == socketNum){
 			recv_len = safeRecvfrom(socketNum, recv_buff, MAX_BUFF,
 											0, (struct sockaddr *) server, &serverAddrLen);
 
@@ -79,6 +80,7 @@ void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args){
 
 			if(flag == DATA_FLAG){
 				fprintf(stderr, "I'm ready for data!\n");
+
 				exit(-1);
 			}
 
@@ -97,6 +99,12 @@ void initC(int socketNum, struct sockaddr_in6 *server, struct rcopy_args args){
 	fprintf(stderr, "Never received data\n");
 	exit(-1); 
 }
+
+/*
+void recv_data(socketNum, struct sockaddr_in6 *server){
+
+}
+*/
 
 
 int getData(char * buffer){

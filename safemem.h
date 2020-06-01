@@ -9,4 +9,5 @@ void sstrcpy(char *dest, const char *src);
 size_t sstrlen(char *str);
 int sfork();
 FILE* sfopen(char *path, char *mode);
+size_t sfread(void *ptr, size_t size, size_t bs, FILE *stream);
 #endif

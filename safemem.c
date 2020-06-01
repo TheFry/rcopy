@@ -4,12 +4,15 @@
 #include <sys/types.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <unistd.h>
 #include "safemem.h"
+#include "packet.h"
 
 
 void *smemcpy(void *dest, const void *src, size_t n){
    void *ptr = NULL;
+
    ptr = memcpy(dest, src, n);
    
    if(ptr == NULL){
@@ -112,4 +115,24 @@ FILE* sfopen(char *path, char *mode){
       return NULL;
    }
    return my_file;
+}
+
+
+size_t sfread(void *ptr, size_t size, size_t bs, FILE *stream){
+   size_t amount;
+   int err_val = 0;
+
+   smemset(ptr, '\0', MAX_BUFF);
+   amount = (fread(ptr, size, bs, stream));
+   if(amount != bs){
+      if((err_val = feof(stream)) <= 0){
+         perror("Read call");
+         exit(-1);
+      }else{
+         return 0;
+      }
+   }
+
+   return (long)amount;
+
 }
