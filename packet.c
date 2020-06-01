@@ -88,7 +88,7 @@ void server_process_srej(uint8_t *buffer, int len){
 
    smemcpy(&srej, ptr, sizeof(srej));
    srej = ntohl(srej);
-   
+
 }
 
 
@@ -97,7 +97,7 @@ int build_data_pdu(uint8_t *buffer, uint32_t sequence,
 
    unsigned short check_val = 0;
    struct pdu_header *header = (struct pdu_header *)buffer;
-   uint8_t *ptr = (uintptr_t)buffer + HEADER_LEN;
+   uint8_t *ptr = buffer + HEADER_LEN;
 
    build_header(buffer, sequence, DATA_FLAG);
    smemcpy(ptr, payload, data_len);

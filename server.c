@@ -24,14 +24,14 @@
 /* Maximum amount of packets to send before bailing */
 #define MAX_SEND 10
 
-void processClient(int socketNum);
+void processClient(int socketNum, double err_rate);
 void checkArgs(int argc, char *argv[], int *port, double *err_rate);
 
 void process_init(uint8_t *buffer, int len,
-								 struct sockaddr_in6 *client, int sock);
+						struct sockaddr_in6 *client, int sock, double err_rate);
 
 void setup_child(struct sockaddr_in6 *client,
-					  uint8_t *buffer, int len, int sock);
+					  uint8_t *buffer, int len, int sock, double err_rate);
 
 void send_data(FILE *f, struct sockaddr_in6 *client, uint32_t wsize, uint32_t bs);
 void send_data_pdu(FILE *f, uint32_t seq, uint32_t bs, struct sockaddr *addr, int sock);
@@ -46,14 +46,14 @@ int main(int argc, char *argv[]){
 	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
 	
 	socketNum = udpServerSetup(portNumber);
-	processClient(socketNum);
+	processClient(socketNum, err_rate);
 
 	close(socketNum);
 	return 0;
 }
 
 
-void processClient(int socketNum){
+void processClient(int socketNum, double err_rate){
 	int recv_len = 0; 
 	uint8_t buffer[MAX_BUFF] = "";	  
 	struct sockaddr_in6 client;		
@@ -68,14 +68,14 @@ void processClient(int socketNum){
 		
 		printf("Main: Received message from client with ");
 		printIPInfo(&client);
-		process_init(buffer, recv_len, &client, socketNum);
+		process_init(buffer, recv_len, &client, socketNum, err_rate);
 	}
 }
 
 
 /* Check for init packet and fork if needed */
 void process_init(uint8_t *buffer, int len,
-								 struct sockaddr_in6 *client, int sock){
+					   struct sockaddr_in6 *client, int sock, double err_rate){
 	uint8_t type = get_type(buffer, len);
 
 	if(type != INIT_FLAG){
@@ -83,13 +83,13 @@ void process_init(uint8_t *buffer, int len,
 		return;
 	}
 
-	setup_child(client, buffer, len, sock);
+	setup_child(client, buffer, len, sock, err_rate);
 }
 
 
 /* Call fork and get a new socket. Contact client through this. */
 void setup_child(struct sockaddr_in6 *client,
-					  uint8_t *buffer, int len, int sock){
+					  uint8_t *buffer, int len, int sock, double err_rate){
 
 	uint8_t *ptr = buffer + HEADER_LEN;
 	uint8_t name_len;
@@ -104,7 +104,7 @@ void setup_child(struct sockaddr_in6 *client,
 
 	/* New process */
 	if(sfork()){ return; }
-
+	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
 	/* Get filename */
 	smemcpy(&name_len, ptr, sizeof(uint8_t));
 	ptr += sizeof(uint8_t);
@@ -139,6 +139,7 @@ void send_data(FILE *f, struct sockaddr_in6 *client, uint32_t wsize, uint32_t bs
 	int timeout = 0;
 	int pdu_len = 0;
 	int did_recv = 0;
+	int srej;
 	uint8_t file_data[MAX_BUFF];
 	uint8_t pdu[MAX_BUFF] = "";
 	uint32_t seq = 0;
