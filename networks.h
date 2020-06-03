@@ -16,7 +16,9 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <math.h>
-#include "packet.h"
+
+#define BACKLOG 10
+#define MAX_NAME 100
 
 struct rcopy_args{
    char remote[MAX_NAME];
@@ -28,8 +30,17 @@ struct rcopy_args{
    int port;
 } __attribute__((packed));
 
-#define BACKLOG 10
-#define READ "r"
+
+struct conn_info{
+   struct sockaddr *addr;
+   int addr_len;
+   FILE *f;
+   uint32_t wsize;
+   uint32_t bs;
+   int sock;
+};
+
+
 
 //Safe sending and receiving 
 int safeRecv(int socketNum, void * buf, int len, int flags);
@@ -45,8 +56,5 @@ int udpServerSetup(int portNumber);
 // for the client side
 int tcpClientSetup(char * serverName, char * port, int debugFlag);
 int setupUdpClientToServer(struct sockaddr_in6 *server, char * hostName, int portNumber);
-
-
-
 
 #endif

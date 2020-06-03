@@ -1,6 +1,6 @@
 #ifndef PACKET_H
 #define PACKET_H
-// new additions
+#include "networks.h"
 struct pdu_header{
    uint32_t sequence;
    uint8_t crc[2];
@@ -24,7 +24,8 @@ struct pdu_header{
 void print_buff(uint8_t *buff, int len);
 
 int build_data_pdu(uint8_t *buffer, uint32_t seq, uint8_t *payload, size_t data_len);
-void server_process_srej(uint8_t *buffer, int len);
+
+void server_process_srej(uint8_t *buffer, int len, struct conn_info conn);
 int build_srej(uint8_t *buffer, uint32_t sequence, uint32_t srej);
 void build_header(uint8_t *buffer, uint32_t seq, uint8_t flag);
 int build_init_pdu(uint8_t *buffer, char *file, uint32_t wsize, uint32_t bs);
@@ -34,5 +35,5 @@ uint8_t get_type(uint8_t *buffer, int len);
 int build_bad_pdu(uint8_t *buffer);
 int build_rr(uint8_t *buffer, uint32_t sequence, uint32_t rr);
 void server_process_rr(uint8_t *buffer, int len);
-void server_parse_packet(uint8_t *buffer, int len);
+void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn);
 #endif

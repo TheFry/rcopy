@@ -88,14 +88,15 @@ void initC(int socketNum, struct sockaddr_in6 *server,
 
 			/* Bad packet, resend */
 			safeSendto(socketNum, pdu, dataLen, 0, addr, serverAddrLen);
-
 			i += 1;
+
 		}else{
 			fprintf(stderr, "No response\n");
 			safeSendto(socketNum, pdu, dataLen, 0, addr, serverAddrLen);
 			i += 1;
 		}
 	}
+
 	fprintf(stderr, "Never received data\n");
 	exit(-1); 
 }
@@ -116,7 +117,7 @@ void recv_data(int socketNum, struct sockaddr *addr, struct rcopy_args args){
 
 
 FILE* init_file(char *path){
-	FILE* f = sfopen(path, READ);
+	FILE* f = sfopen(path, "w");
 	if(f == NULL){
 		exit(-1);
 	}

@@ -21,12 +21,12 @@ struct table_entry{
    int pdu_len;
 } __attribute__((packed));
 
-extern int table_closed;
-
+extern int window_closed;
 void init_table(uint32_t size);
 void reset_table();
 void print_table();
 int get_entry(uint32_t seq);
+struct table_entry* get_srej(uint32_t srej);
 int enq(uint32_t seq, uint8_t *pdu, int pdu_len);
 void deq(uint32_t rr);
 void reset_table();

@@ -33,8 +33,8 @@ void process_init(uint8_t *buffer, int len,
 void setup_child(struct sockaddr_in6 *client,
 					  uint8_t *buffer, int len, int sock, double err_rate);
 
-void send_data(FILE *f, struct sockaddr_in6 *client, uint32_t wsize, uint32_t bs);
-void send_data_pdu(FILE *f, uint32_t seq, uint32_t bs, struct sockaddr *addr, int sock);
+void send_data(struct conn_info conn);
+void send_data_pdu(struct conn_info conn, uint32_t seq);
 
 
 int main(int argc, char *argv[]){ 
@@ -87,31 +87,33 @@ void process_init(uint8_t *buffer, int len,
 }
 
 
-/* Call fork and get a new socket. Contact client through this. */
+/* Call fork, get filename/wsize/bs */
 void setup_child(struct sockaddr_in6 *client,
 					  uint8_t *buffer, int len, int sock, double err_rate){
 
+	uint8_t send_buffer[MAX_BUFF] = "";
 	uint8_t *ptr = buffer + HEADER_LEN;
 	uint8_t name_len;
 	uint32_t wsize;
 	uint32_t bs;
 	char filename[MAX_NAME] = "";
-	uint8_t send_buffer[MAX_BUFF] = "";
+	struct conn_info conn;
 	int buff_len = 0;
 	int clientAddrLen = sizeof(struct sockaddr_in6);
 	FILE *f;
 
-
 	/* New process */
 	if(sfork()){ return; }
 	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
+	
 	/* Get filename */
 	smemcpy(&name_len, ptr, sizeof(uint8_t));
 	ptr += sizeof(uint8_t);
 	smemcpy(filename, ptr, name_len);
 	ptr += name_len;
+	
 	/* Try to open file */
-	if((f = sfopen(filename, READ)) == NULL){
+	if((f = sfopen(filename, "r")) == NULL){
 		buff_len = build_bad_pdu(send_buffer);
 
 		/* Send error packet. Does not check for response because client
@@ -124,69 +126,65 @@ void setup_child(struct sockaddr_in6 *client,
 
 	/* Get wsize and block size */
 	smemcpy(&wsize, ptr, sizeof(wsize));
-	wsize = ntohl(wsize);
+	conn.wsize = ntohl(wsize);
 	ptr += sizeof(wsize);
 	smemcpy(&bs, ptr, sizeof(bs));
-	bs = ntohl(bs);
+	conn.bs = ntohl(bs);
+	conn.addr = (struct sockaddr *)client;
+	conn.addr_len = sizeof(struct sockaddr);
+	conn.f = f;
 
-	send_data(f, client, wsize, bs);
+	send_data(conn);
 }
 
 
 /* Create new socket and send data to client */
-void send_data(FILE *f, struct sockaddr_in6 *client, uint32_t wsize, uint32_t bs){
-	int sock = socket(AF_INET6, SOCK_DGRAM, 0);
+void send_data(struct conn_info conn){
 	int timeout = 0;
 	int pdu_len = 0;
-	int did_recv = 0;
-	int srej;
 	uint8_t file_data[MAX_BUFF];
 	uint8_t pdu[MAX_BUFF] = "";
-	uint32_t seq = 0;
-	struct sockaddr *addr = (struct sockaddr *)client;
+	uint32_t seq = 1;
 
-
-	smemset(file_data, '\0', bs);
-	init_table(wsize);
+	/* Child uses new socket to talk to client */
+	conn.sock = socket(AF_INET6, SOCK_DGRAM, 0);
+	smemset(file_data, '\0', conn.bs);
+	init_table(conn.wsize);
 	setupPollSet();
-	addToPollSet(sock);
+	addToPollSet(conn.sock);
 
-	send_data_pdu(f, seq, bs, addr, sock);
-	seq++;
 	while(timeout < MAX_SEND){
 
-		if(pollCall(0) > 0){
-			server_parse_packet(pdu, pdu_len);
+		if(!window_closed){			/* window_closed defined in table.c */
 			timeout = 0;
-			did_recv = 1;
-		}
+			send_data_pdu(conn, seq);
+			seq++;
+			if(pollCall(0) > 0){
+				pdu_len = safeRecvfrom(conn.sock, pdu, MAX_BUFF,
+											  0, conn.addr, &conn.addr_len);
 
-		/* If closed and didn't recv anything then increment timeout */
-		if(table_closed){
-			if(!did_recv){
-				timeout++;
+				server_parse_packet(pdu, pdu_len, conn);
 				continue;
 			}
-		}
-		send_data_pdu(f, seq, bs, addr, sock);	
+		}	
 	}
 }
 
 
-void send_data_pdu(FILE *f, uint32_t seq, uint32_t bs, struct sockaddr *addr, int sock){
-	size_t amount = 0;
-	uint8_t pdu[MAX_BUFF] = "";
-	uint8_t file_data[MAX_BUFF] = "";
-	int len;
+void send_data_pdu(struct conn_info conn, uint32_t seq){
+   size_t amount = 0;
+   uint8_t pdu[MAX_BUFF] = "";
+   uint8_t file_data[MAX_BUFF] = "";
+   int len;
 
-	if((amount = sfread(file_data, 1, bs, f)) == 0){
-		//Go to done function
-		fprintf(stderr, "Done with data\n");
-		return;
-	}
-	len = build_data_pdu(pdu, seq, file_data, amount);
-	safeSendto(sock, pdu, len, 0, addr, sizeof(struct sockaddr_in6));
-	enq(seq, pdu, len);
+   if((amount = sfread(file_data, 1, conn.bs, conn.f)) == 0){
+      //Go to done function
+      fprintf(stderr, "Done with data\n");
+      exit(0);
+   }
+   len = build_data_pdu(pdu, seq, file_data, amount);
+   safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
+   enq(seq, pdu, len);
 }
 
 

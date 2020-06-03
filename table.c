@@ -14,7 +14,7 @@ static uint32_t current;
 static uint32_t upper;
 static uint32_t lower;
 static int table_index;
-int table_closed;
+int window_closed;
 
 /* Get memory for the table and init the memory
  */
@@ -42,7 +42,7 @@ void init_table(uint32_t given_size){
    lower = 0;
    upper = lower + window_size;
    table_index = 0;
-   table_closed = 0;
+   window_closed = 0;
 }
 
 
@@ -58,8 +58,8 @@ void reset_table(){
 
 /* Add packet to window */
 int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
-   if(table_closed){
-      fprintf(stderr, "Error adding seq: %u\tWindow is table_closed\n", seq);
+   if(window_closed){
+      fprintf(stderr, "Error adding seq: %u\tWindow is window_closed\n", seq);
       return -1;
    } 
    /* clear pdu entry */
@@ -71,7 +71,7 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
    current += 1;
 
    if(current == upper){
-      table_closed = 1;
+      window_closed = 1;
    }
    return 0;
 }

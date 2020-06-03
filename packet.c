@@ -1,12 +1,15 @@
+#include <stdint.h>
+#include <arpa/inet.h>
 #include "networks.h"
 #include "packet.h"
 #include "safemem.h"
 #include "checksum.h"
 #include "table.h"
-#include <stdint.h>
 
 
-void server_parse_packet(uint8_t *buffer, int len){
+
+
+void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn){
    uint8_t flag = get_type(buffer, len);
 
    switch (flag){
@@ -16,7 +19,7 @@ void server_parse_packet(uint8_t *buffer, int len){
          server_process_rr(buffer, len);
          break;
       case SREJ_FLAG:
-         server_process_srej(buffer, len);
+         server_process_srej(buffer, len, conn);
          break;
       default:
          fprintf(stderr, "Unknown packet type. Ignoring\n");
@@ -37,6 +40,7 @@ void rcopy_parse_packet(uint8_t *buff, int len){
          break;
    }
 }
+
 
 
 uint8_t get_type(uint8_t *buffer, int len){
@@ -82,13 +86,15 @@ void server_process_rr(uint8_t *buffer, int len){
 }
 
 
-void server_process_srej(uint8_t *buffer, int len){
+void server_process_srej(uint8_t *buffer, int len, struct conn_info conn){
    uint8_t *ptr = buffer + HEADER_LEN;
+   struct table_entry *entry;
    uint32_t srej;
 
    smemcpy(&srej, ptr, sizeof(srej));
    srej = ntohl(srej);
-
+   entry = get_srej(srej);
+   safeSendto(conn.sock, entry->pdu, entry->pdu_len, 0, conn.addr, conn.addr_len);
 }
 
 
@@ -107,6 +113,7 @@ int build_data_pdu(uint8_t *buffer, uint32_t sequence,
 
    return(HEADER_LEN + data_len);
 }
+
 
 
 /* Init packet header:
