@@ -28,9 +28,10 @@ int build_data_pdu(uint8_t *buffer, uint32_t seq, uint8_t *payload, size_t data_
 void server_process_srej(uint8_t *buffer, int len, struct conn_info conn);
 int build_srej(uint8_t *buffer, uint32_t sequence, uint32_t srej);
 void build_header(uint8_t *buffer, uint32_t seq, uint8_t flag);
+int parse_data_pdu(uint8_t *pdu, uint8_t *data, int pdu_len);
 int build_init_pdu(uint8_t *buffer, char *file, uint32_t wsize, uint32_t bs);
 int validate_checksum(uint8_t *buffer, int len);
-void rcopy_parse_packet(uint8_t *buff, int socket);
+int rcopy_parse_packet(uint8_t *buff, int len);
 uint8_t get_type(uint8_t *buffer, int len);
 int build_bad_pdu(uint8_t *buffer);
 int build_rr(uint8_t *buffer, uint32_t sequence, uint32_t rr);

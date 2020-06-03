@@ -29,7 +29,5 @@ int get_entry(uint32_t seq);
 struct table_entry* get_srej(uint32_t srej);
 int enq(uint32_t seq, uint8_t *pdu, int pdu_len);
 void deq(uint32_t rr);
-void reset_table();
-
 
 #endif

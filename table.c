@@ -16,6 +16,7 @@ static uint32_t lower;
 static int table_index;
 int window_closed;
 
+
 /* Get memory for the table and init the memory
  */
 void init_table(uint32_t given_size){
@@ -62,17 +63,18 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
       fprintf(stderr, "Error adding seq: %u\tWindow is window_closed\n", seq);
       return -1;
    } 
+   
    /* clear pdu entry */
-   smemset(table[table_index].pdu, '\0', pdu_len);
+   smemset(table[table_index].pdu, '5', pdu_len);
 
    table[table_index].seq = seq;
+   table[table_index].pdu_len = pdu_len;
+   print_buff(pdu, pdu_len);
    smemcpy(table[table_index].pdu, pdu, pdu_len);
    table_index = (table_index + 1) % window_size;
    current += 1;
 
-   if(current == upper){
-      window_closed = 1;
-   }
+   if(current == upper){ window_closed = 1; }
    return 0;
 }
 

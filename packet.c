@@ -28,16 +28,19 @@ void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn){
 
 
 
-void rcopy_parse_packet(uint8_t *buff, int len){
+int rcopy_parse_packet(uint8_t *buff, int len){
    uint8_t flag = get_type(buff, len);
 
    switch(flag){
       case BAD_PACKET:
-         break;
+         fprintf(stderr, "Bad packet\n");
+         return -1;
+      case DATA_FLAG:
+         return 0;
       default:
-         printf("\nNot defined\n");
+         fprintf(stderr, "Not data packet\n");
          print_buff(buff, len);
-         break;
+         return -1;
    }
 }
 
@@ -115,6 +118,18 @@ int build_data_pdu(uint8_t *buffer, uint32_t sequence,
 }
 
 
+int parse_data_pdu(uint8_t *pdu, uint8_t *data, int pdu_len){
+   uint8_t *ptr = pdu + HEADER_LEN;
+   int data_len = pdu_len - HEADER_LEN;
+
+   if(data_len <= 0){
+      fprintf(stderr, "Empty data packet :(\n");
+   }
+
+   smemset(data, '\0', MAX_BUFF);
+   smemcpy(data, ptr, data_len);
+   return data_len;
+}
 
 /* Init packet header:
  * Normal pdu header + name_len + name + wsize + bs
@@ -188,18 +203,18 @@ void print_buff(uint8_t *buff, int len){
    printf("Buffer Data Length: %u\n", len);
 
    if((validate_checksum(buff, len))){
-      printf("Checksum invalid, bad packet\n");
+      fprintf(stderr, "Checksum invalid, bad packet\n");
    }else{
-      printf("Checksum valid!\n");
+      fprintf(stderr, "Checksum valid!\n");
    }
 
    for(i= 0; i < len; i++){
-      printf("%02x ", buff[i]);
+      fprintf(stderr, "%02x ", buff[i]);
       if(i == line_break){
-         printf("\n");
+         fprintf(stderr, "\n");
          line_break += line_break;
       }
    }
 
-   printf("\n\n");
+   fprintf(stderr, "\n\n");
 }

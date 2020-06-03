@@ -104,7 +104,6 @@ void setup_child(struct sockaddr_in6 *client,
 
 	/* New process */
 	if(sfork()){ return; }
-	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
 	
 	/* Get filename */
 	smemcpy(&name_len, ptr, sizeof(uint8_t));
@@ -131,7 +130,7 @@ void setup_child(struct sockaddr_in6 *client,
 	smemcpy(&bs, ptr, sizeof(bs));
 	conn.bs = ntohl(bs);
 	conn.addr = (struct sockaddr *)client;
-	conn.addr_len = sizeof(struct sockaddr);
+	conn.addr_len = sizeof(struct sockaddr_in6);
 	conn.f = f;
 
 	send_data(conn);
@@ -144,7 +143,7 @@ void send_data(struct conn_info conn){
 	int pdu_len = 0;
 	uint8_t file_data[MAX_BUFF];
 	uint8_t pdu[MAX_BUFF] = "";
-	uint32_t seq = 1;
+	uint32_t seq = 0;
 
 	/* Child uses new socket to talk to client */
 	conn.sock = socket(AF_INET6, SOCK_DGRAM, 0);
@@ -180,8 +179,10 @@ void send_data_pdu(struct conn_info conn, uint32_t seq){
    if((amount = sfread(file_data, 1, conn.bs, conn.f)) == 0){
       //Go to done function
       fprintf(stderr, "Done with data\n");
+      print_table();
       exit(0);
    }
+
    len = build_data_pdu(pdu, seq, file_data, amount);
    safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
    enq(seq, pdu, len);

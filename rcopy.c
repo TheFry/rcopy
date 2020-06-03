@@ -32,6 +32,8 @@ int getData(char * buffer);
 struct rcopy_args checkArgs(int argc, char * argv[]);
 void print_args(struct rcopy_args args);
 FILE* init_file(char *path);
+void recv_data(int socketNum, struct sockaddr *addr,
+					struct rcopy_args args, uint8_t *buffer, int len, FILE *f);
 
 int main (int argc, char *argv[]){
 	int socketNum = 0;				
@@ -83,7 +85,7 @@ void initC(int socketNum, struct sockaddr_in6 *server,
 
 			if(flag == DATA_FLAG){
 				fprintf(stderr, "I'm ready for data!\n");
-				exit(-1);
+				recv_data(socketNum, addr, args, recv_buff, recv_len, f);
 			}
 
 			/* Bad packet, resend */
@@ -103,17 +105,51 @@ void initC(int socketNum, struct sockaddr_in6 *server,
 
 
 
-void recv_data(int socketNum, struct sockaddr *addr, struct rcopy_args args){
-	uint32_t expecting = 0;
-	uint32_t seq = 0;
-	int done = 0;
-
+void recv_data(int socketNum, struct sockaddr *addr,
+					struct rcopy_args args, uint8_t *pdu, int len, FILE *f){
+	
+	uint8_t data_buff[MAX_BUFF] = "";
+	int data_len = 0;
+	int addr_len = sizeof(struct sockaddr_in6);
+	uint32_t seq = 1;
+	uint32_t waiting_on[args.wsize];
+	uint32_t expected = 0;
 	init_table(args.wsize);
+	struct pdu_header *header = (struct pdu_header *)pdu;
+	int done = 0;
+	int i = 0;
+	if(ntohl(header->sequence) == expected){
+		data_len = parse_data_pdu(pdu, data_buff, len);
+		sfwrite(data_buff, 1, data_len, f);
+		expected++;
+	}
 
 	while(!done){
-		
+		if(pollCall(1) == socketNum){
+			len = safeRecvfrom(socketNum, pdu, MAX_BUFF,
+									 0, addr, &addr_len);
+
+			if(rcopy_parse_packet(pdu, len)){ continue; }  /*Bad packets, ignore*/
+			
+			if(ntohl(header->sequence) == expected){
+				print_buff(pdu, len);
+				data_len = parse_data_pdu(pdu, data_buff, len);
+
+				sfwrite(data_buff, 1, data_len, f);
+				expected++;
+			}
+		}else{
+			printf("%d\n", i);
+			if(i == 3){
+				fclose(f);
+				exit(-1);
+			}
+			i++;
+		}
+
 	}
 }
+
 
 
 FILE* init_file(char *path){

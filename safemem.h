@@ -10,4 +10,5 @@ size_t sstrlen(char *str);
 int sfork();
 FILE* sfopen(char *path, char *mode);
 size_t sfread(void *ptr, size_t size, size_t bs, FILE *stream);
+size_t sfwrite(void *ptr, size_t size, size_t bs, FILE *stream);
 #endif
