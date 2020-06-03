@@ -122,6 +122,10 @@ void recv_data(int socketNum, struct sockaddr *addr,
 		data_len = parse_data_pdu(pdu, data_buff, len);
 		sfwrite(data_buff, 1, data_len, f);
 		expected++;
+		len = build_rr(data_buff, seq, expected);
+		printf("RR\n");
+		print_buff(data_buff, len);
+		seq++;
 	}
 
 	while(!done){
@@ -132,11 +136,15 @@ void recv_data(int socketNum, struct sockaddr *addr,
 			if(rcopy_parse_packet(pdu, len)){ continue; }  /*Bad packets, ignore*/
 			
 			if(ntohl(header->sequence) == expected){
-				print_buff(pdu, len);
 				data_len = parse_data_pdu(pdu, data_buff, len);
 
 				sfwrite(data_buff, 1, data_len, f);
 				expected++;
+				len = build_rr(data_buff, seq, expected);
+				printf("RR\n");
+				print_buff(data_buff, len);
+				safeSendto(socketNum, data_buff, len, 0, addr, addr_len);
+				seq++;
 			}
 		}else{
 			printf("%d\n", i);

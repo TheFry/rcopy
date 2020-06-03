@@ -147,13 +147,14 @@ void send_data(struct conn_info conn){
 
 	/* Child uses new socket to talk to client */
 	conn.sock = socket(AF_INET6, SOCK_DGRAM, 0);
-	smemset(file_data, '\0', conn.bs);
+	
 	init_table(conn.wsize);
 	setupPollSet();
 	addToPollSet(conn.sock);
 
 	while(timeout < MAX_SEND){
-
+		smemset(file_data, '\0', MAX_BUFF);
+		smemset(pdu, '\0', MAX_BUFF);
 		if(!window_closed){			/* window_closed defined in table.c */
 			timeout = 0;
 			send_data_pdu(conn, seq);
@@ -164,6 +165,12 @@ void send_data(struct conn_info conn){
 
 				server_parse_packet(pdu, pdu_len, conn);
 				continue;
+			}
+		}else{
+			if(pollCall(1) > 0){
+				pdu_len = safeRecvfrom(conn.sock, pdu, MAX_BUFF, 0,
+											  conn.addr, &conn.addr_len);
+				server_parse_packet(pdu, pdu_len, conn);
 			}
 		}	
 	}

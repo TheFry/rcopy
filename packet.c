@@ -60,12 +60,16 @@ uint8_t get_type(uint8_t *buffer, int len){
 
 
 int build_rr(uint8_t *buffer, uint32_t sequence, uint32_t rr){
-   build_header(buffer, sequence, RR_FLAG);
+   struct pdu_header *header = (struct pdu_header *)buffer;
    uint8_t *ptr = buffer + HEADER_LEN;
+   unsigned short chkval = 0;
 
+   build_header(buffer, sequence, RR_FLAG);
    rr = htonl(rr);
    smemcpy(ptr, &rr, sizeof(rr));
-   return ptr + sizeof(rr) - buffer;
+   chkval = in_cksum((unsigned short *)buffer, HEADER_LEN + sizeof(rr));
+   smemcpy(header->crc, &chkval, sizeof(chkval));
+   return HEADER_LEN + sizeof(rr);
 }
 
 

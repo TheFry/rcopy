@@ -98,6 +98,7 @@ void deq(uint32_t rr){
 
    lower = rr;
    upper = lower + window_size;
+   window_closed = 0;
 }
 
 
