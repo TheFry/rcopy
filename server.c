@@ -35,7 +35,7 @@ void setup_child(struct sockaddr_in6 *client,
 
 void send_data(struct conn_info conn);
 void send_data_pdu(struct conn_info conn, uint32_t seq);
-
+void resend_lowest(struct conn_info conn);
 
 int main(int argc, char *argv[]){ 
 	int socketNum = 0;				
@@ -162,7 +162,6 @@ void send_data(struct conn_info conn){
 			if(pollCall(0) > 0){
 				pdu_len = safeRecvfrom(conn.sock, pdu, MAX_BUFF,
 											  0, conn.addr, &conn.addr_len);
-
 				server_parse_packet(pdu, pdu_len, conn);
 				continue;
 			}
@@ -170,12 +169,33 @@ void send_data(struct conn_info conn){
 			if(pollCall(1) > 0){
 				pdu_len = safeRecvfrom(conn.sock, pdu, MAX_BUFF, 0,
 											  conn.addr, &conn.addr_len);
-				server_parse_packet(pdu, pdu_len, conn);
+				server_parse_packet(pdu, pdu_len, conn); 
+				timeout = 0;
+			}else{
+				printf("Timeout\n");
+				resend_lowest(conn);
+				timeout++;
 			}
 		}	
 	}
 }
 
+
+
+void resend_lowest(struct conn_info conn){
+	struct table_entry *entry = get_lowest();
+	int amount = 0;
+
+	if(entry->pdu_len == 0){
+		return;
+	}
+	if((amount = safeSendto(conn.sock, entry->pdu, entry->pdu_len, 0,
+										conn.addr, conn.addr_len)) != entry->pdu_len){
+
+		fprintf(stderr, "Error resending packet\n");
+		exit(-1);
+	}
+}
 
 void send_data_pdu(struct conn_info conn, uint32_t seq){
    size_t amount = 0;
@@ -186,11 +206,11 @@ void send_data_pdu(struct conn_info conn, uint32_t seq){
    if((amount = sfread(file_data, 1, conn.bs, conn.f)) == 0){
       //Go to done function
       fprintf(stderr, "Done with data\n");
-      print_table();
       exit(0);
    }
-
    len = build_data_pdu(pdu, seq, file_data, amount);
+      
+   print_buff(pdu, len);
    safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
    enq(seq, pdu, len);
 }

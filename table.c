@@ -12,8 +12,8 @@ static size_t size;
 static uint32_t window_size; /* window size */
 static uint32_t current;
 static uint32_t upper;
-static uint32_t lower;
 static int table_index;
+static uint32_t lower;
 int window_closed;
 
 
@@ -29,6 +29,7 @@ void init_table(uint32_t given_size){
    /* Get memory and size values */
    size = ENTRY_SIZE * given_size;
    window_size = size / ENTRY_SIZE;
+   printf("Window Size: %d\n", window_size);
    table = (struct table_entry *)smalloc(size);
 
  
@@ -64,12 +65,15 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
       return -1;
    } 
    
+   if(window_size == 1){
+      window_closed = 1;
+      table_index = 0;
+   }
    /* clear pdu entry */
    smemset(table[table_index].pdu, '5', pdu_len);
 
    table[table_index].seq = seq;
    table[table_index].pdu_len = pdu_len;
-   print_buff(pdu, pdu_len);
    smemcpy(table[table_index].pdu, pdu, pdu_len);
    table_index = (table_index + 1) % window_size;
    current += 1;
@@ -85,6 +89,10 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
 void deq(uint32_t rr){
    int seq_table_index;
 
+   if(window_size == 1){
+      window_closed = 0;
+      return;
+   }
    if((seq_table_index = get_entry(rr)) == -1){
       fprintf(stderr, "Error getting entry for deq\n");
       exit(-1);
@@ -128,6 +136,9 @@ int get_entry(uint32_t seq){
    return -1;
 }
 
+struct table_entry* get_lowest(){
+   return &table[lower % window_size];
+}
 
 struct table_entry* get_srej(uint32_t srej){
    int i = 0;

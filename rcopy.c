@@ -34,6 +34,8 @@ void print_args(struct rcopy_args args);
 FILE* init_file(char *path);
 void recv_data(int socketNum, struct sockaddr *addr,
 					struct rcopy_args args, uint8_t *buffer, int len, FILE *f);
+void rcopy_send_rr(uint32_t seq, uint32_t rr, int sock,
+											struct sockaddr *addr, int addr_len);
 
 int main (int argc, char *argv[]){
 	int socketNum = 0;				
@@ -137,27 +139,29 @@ void recv_data(int socketNum, struct sockaddr *addr,
 			
 			if(ntohl(header->sequence) == expected){
 				data_len = parse_data_pdu(pdu, data_buff, len);
-
 				sfwrite(data_buff, 1, data_len, f);
 				expected++;
-				len = build_rr(data_buff, seq, expected);
-				printf("RR\n");
-				print_buff(data_buff, len);
-				safeSendto(socketNum, data_buff, len, 0, addr, addr_len);
+				rcopy_send_rr(seq, expected, socketNum, addr, addr_len);
 				seq++;
+			}else if(ntohl(header->sequence) < expected){
+				rcopy_send_rr(seq, expected, socketNum, addr, addr_len);
 			}
-		}else{
-			printf("%d\n", i);
-			if(i == 3){
-				fclose(f);
-				exit(-1);
-			}
-			i++;
 		}
-
 	}
 }
 
+
+void rcopy_send_rr(uint32_t seq, uint32_t rr, int sock,
+											struct sockaddr *addr, int addr_len){
+
+	uint8_t buffer[MAX_BUFF] = "";
+	int len;
+
+	len = build_rr(buffer, seq, rr);
+	printf("RR\n");
+	print_buff(buffer, len);
+	safeSendto(sock, buffer, len, 0, addr, addr_len);
+}
 
 
 FILE* init_file(char *path){

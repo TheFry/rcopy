@@ -26,6 +26,7 @@ void init_table(uint32_t size);
 void reset_table();
 void print_table();
 int get_entry(uint32_t seq);
+struct table_entry* get_lowest();
 struct table_entry* get_srej(uint32_t srej);
 int enq(uint32_t seq, uint8_t *pdu, int pdu_len);
 void deq(uint32_t rr);

@@ -128,10 +128,10 @@ size_t sfread(void *ptr, size_t size, size_t bs, FILE *stream){
       if((err_val = feof(stream)) <= 0){
          perror("Read call");
          exit(-1);
-      }else{
-         return 0;
       }
+
    }
+   return(amount);
 
    return (long)amount;
 

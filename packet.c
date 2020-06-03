@@ -75,10 +75,14 @@ int build_rr(uint8_t *buffer, uint32_t sequence, uint32_t rr){
 
 int build_srej(uint8_t *buffer, uint32_t sequence, uint32_t srej){
    build_header(buffer, sequence, SREJ_FLAG);
+   struct pdu_header *header = (struct pdu_header *)buffer;
    uint8_t *ptr = buffer + HEADER_LEN;
-   
+   short chkval;
+
    srej = htonl(srej);
    smemcpy(ptr, &srej, sizeof(srej));
+   chkval = in_cksum((unsigned short *)buffer, HEADER_LEN + sizeof(srej));
+   smemcpy(header->crc, &chkval, sizeof(chkval));
    return(ptr + sizeof(srej) - buffer);
 }
 
