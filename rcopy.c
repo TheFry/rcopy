@@ -32,10 +32,9 @@ struct rcopy_args checkArgs(int argc, char * argv[]);
 void print_args(struct rcopy_args args);
 FILE* init_file(char *path);
 void recv_data(struct conn_info conn, uint8_t *pdu, int len);
-void rcopy_send_rr(uint32_t seq, uint32_t rr, int sock,
-											struct sockaddr *addr, int addr_len);
+void rcopy_send_rr(uint32_t seq, uint32_t rr, struct conn_info conn);
 
-
+void rcopy_write_data(uint8_t *buffer, int len, struct conn_info conn);
 
 int main (int argc, char *argv[]){	
 	struct conn_info conn;		
@@ -51,9 +50,9 @@ int main (int argc, char *argv[]){
 	return 0;
 }
 
+
 /* Initialize the connection */
 void initC(struct conn_info conn, struct rcopy_args args){
-
 	int dataLen = 0; 
 	uint8_t pdu[MAX_BUFF] = "";
 	uint8_t recv_buff[MAX_BUFF] = "";
@@ -113,6 +112,8 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 	struct pdu_header *header = (struct pdu_header *)pdu;
 	int done = 0;
 	int type;
+	int index = 0;
+	uint32_t pdu_seq = 0;
 
 	if(ntohl(header->sequence) == expected){
 		data_len = parse_data_pdu(pdu, data_buff, len);
@@ -124,6 +125,7 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 		seq++;
 	}
 
+
 	while(!done){
 		if(pollCall(10) == conn.sock){
 			len = safeRecvfrom(conn.sock, pdu, MAX_BUFF,
@@ -131,18 +133,26 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 			/* bad pdu */
 			if((type = rcopy_parse_packet(pdu, len)) == -1){ continue; }
 			
-			if(ntohl(header->sequence) == expected){
+			pdu_seq = ntohl(header->sequence);
+			if(pdu_seq < expected){
+				rcopy_send_rr(seq, expected, conn);
+
+			}else if(pdu_seq > expected){
+				if(put_entry(pdu, len, pdu_seq)){
+
+				}
+
+			}else{
 				if(type == 1){
 					rcopy_close(conn, ntohl(header->sequence) + 1, seq);
 				}
 				data_len = parse_data_pdu(pdu, data_buff, len);
 				sfwrite(data_buff, 1, data_len, conn.f);
 				expected++;
-				rcopy_send_rr(seq, expected, conn.sock, conn.addr, conn.addr_len);
+				rcopy_send_rr(seq, expected, conn);
 				seq++;
-			}else if(ntohl(header->sequence) < expected){
-				rcopy_send_rr(seq, expected, conn.sock, conn.addr, conn.addr_len);
 			}
+
 		}else{
 			fprintf(stderr, "Timeout, Exiting...\n");
 			exit(-1);
@@ -151,21 +161,24 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 }
 
 
+void handle_srej(uint8_t *buffer, uint32_t *srejs, uint32_t expected){
 
+}
 
-
-void rcopy_send_rr(uint32_t seq, uint32_t rr, int sock,
-											struct sockaddr *addr, int addr_len){
-
+void rcopy_send_rr(uint32_t seq, uint32_t rr, struct conn_info conn){
 	uint8_t buffer[MAX_BUFF] = "";
 	int len;
 
 	len = build_rr(buffer, seq, rr);
 	printf("RR\n");
 	print_buff(buffer, len);
-	safeSendto(sock, buffer, len, 0, addr, addr_len);
+	safeSendto(conn.sock, buffer, len, 0, conn.addr, conn.addr_len);
 }
 
+
+void rcopy_write_data(uint8_t *buf, int len, struct conn_info conn){
+
+}
 
 FILE* init_file(char *path){
 	FILE* f = sfopen(path, "w");

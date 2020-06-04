@@ -138,7 +138,7 @@ void server_process_srej(uint8_t *buffer, int len, struct conn_info conn){
 
    smemcpy(&srej, ptr, sizeof(srej));
    srej = ntohl(srej);
-   entry = get_srej(srej);
+   entry = get_entry_struct(srej);
    safeSendto(conn.sock, entry->pdu, entry->pdu_len, 0, conn.addr, conn.addr_len);
 }
 

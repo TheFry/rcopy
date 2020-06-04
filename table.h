@@ -22,10 +22,15 @@ struct table_entry{
 } __attribute__((packed));
 
 extern int window_closed;
+extern struct table_entry *table;
 void init_table(uint32_t size);
 void reset_table();
 void print_table();
 int get_entry(uint32_t seq);
+struct table_entry* get_entry_struct(uint32_t my_seq);
+int put_entry(uint8_t *buffer, int len, uint32_t my_seq);
+int clear_entry(uint32_t my_seq);
+
 struct table_entry* get_lowest();
 struct table_entry* get_srej(uint32_t srej);
 int enq(uint32_t seq, uint8_t *pdu, int pdu_len);

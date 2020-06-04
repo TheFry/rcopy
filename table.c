@@ -7,7 +7,7 @@
 #include "safemem.h"
 #include "table.h"
 
-static struct table_entry *table;
+struct table_entry *table;
 static size_t size;
 static uint32_t window_size; /* window size */
 static uint32_t current;
@@ -26,6 +26,7 @@ void init_table(uint32_t given_size){
 
 
    if(given_size == -1){ given_size = DEFAULT_TABLE_SIZE; }
+   
    /* Get memory and size values */
    size = ENTRY_SIZE * given_size;
    window_size = size / ENTRY_SIZE;
@@ -136,17 +137,58 @@ int get_entry(uint32_t seq){
    return -1;
 }
 
+
+/* Return low entry in table */
 struct table_entry* get_lowest(){
    return &table[lower % window_size];
 }
 
-struct table_entry* get_srej(uint32_t srej){
+
+/* These next functions are used by rcopy client */
+struct table_entry* get_entry_struct(uint32_t my_seq){
    int i = 0;
    for(i = 0; i < window_size; i++){
-      if(table[i].seq == srej){
+      if(table[i].seq == my_seq){
          return &table[i];
       }
    }
-   fprintf(stderr, "Srej: Can't find it in the table\n");
+   fprintf(stderr, "Can't find entry in the table\n");
    return NULL;
 }
+
+
+/* Return the index cleared, or -1 on error */
+int clear_entry(uint32_t my_seq){
+   int i = 0;
+   for(i = 0; i < window_size; i++){
+      if(table[i].seq == my_seq){
+         table[i].seq = 0;
+         table[i].pdu_len = 0;
+         smemset(table[i].pdu, '\0', MAX_BUFF);
+      }
+   }
+   fprintf(stderr, "Can't find entry in the table\n");
+   return -1;
+}
+
+
+/* Return the index added to, or -1 on error */
+int put_entry(uint8_t *buffer, int len, uint32_t my_seq){
+   int i = 0;
+   for(i = 0; i < window_size; i++){
+      /* If already in table, return the index */
+      if(table[i].seq == my_seq){ return 1; }
+
+      /* Otherwise, check for free space */
+      if(table[i].pdu_len == 0){
+         table[i].seq = 0;
+         table[i].pdu_len = len;
+         smemcpy(table[i].pdu, buffer, len);
+         return 0;
+      }
+   }
+
+   fprintf(stderr, "Can't find space in table\n");
+   exit(-1);
+}
+
