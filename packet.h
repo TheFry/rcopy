@@ -42,4 +42,5 @@ void server_process_rr(uint8_t *buffer, int len, struct conn_info conn);
 void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn);
 void build_close_pdu(uint8_t *buffer, uint32_t seq);
 void server_close(struct conn_info conn);
+void rcopy_close(struct conn_info conn, uint32_t rr, uint32_t local_seq);
 #endif

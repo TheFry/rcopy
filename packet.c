@@ -68,6 +68,21 @@ void server_close(struct conn_info conn){
 }
 
 
+void rcopy_close(struct conn_info conn, uint32_t rr, uint32_t local_seq){
+   uint8_t pdu[MAX_BUFF] = "";
+   int len;
+
+   fprintf(stderr, "Server sent EOF. Cleaning up...\n");
+   fclose(conn.f);
+   len = build_rr(pdu, local_seq, rr);
+   print_buff(pdu, len);
+   safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
+   close(conn.sock);
+   reset_table();
+   exit(0);
+}
+
+
 
 int build_rr(uint8_t *buffer, uint32_t sequence, uint32_t rr){
    struct pdu_header *header = (struct pdu_header *)buffer;

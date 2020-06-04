@@ -35,7 +35,7 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len);
 void rcopy_send_rr(uint32_t seq, uint32_t rr, int sock,
 											struct sockaddr *addr, int addr_len);
 
-void rcopy_close(struct conn_info conn, uint32_t rr, uint32_t local_seq);
+
 
 int main (int argc, char *argv[]){	
 	struct conn_info conn;		
@@ -104,7 +104,6 @@ void initC(struct conn_info conn, struct rcopy_args args){
 }
 
 
-
 void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 	uint8_t data_buff[MAX_BUFF] = "";
 	int data_len = 0;
@@ -152,19 +151,7 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 }
 
 
-void rcopy_close(struct conn_info conn, uint32_t rr, uint32_t local_seq){
-	uint8_t pdu[MAX_BUFF] = "";
-	int len;
 
-	fprintf(stderr, "Server sent EOF. Cleaning up...\n");
-	fclose(conn.f);
-	len = build_rr(pdu, local_seq, rr);
-	print_buff(pdu, len);
-	safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
-	close(conn.sock);
-	reset_table();
-	exit(0);
-}
 
 
 void rcopy_send_rr(uint32_t seq, uint32_t rr, int sock,
