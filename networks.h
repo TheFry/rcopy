@@ -41,7 +41,6 @@ struct conn_info{
 };
 
 
-
 //Safe sending and receiving 
 int safeRecv(int socketNum, void * buf, int len, int flags);
 int safeSend(int socketNum, void * buf, int len, int flags);

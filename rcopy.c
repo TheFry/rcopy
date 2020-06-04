@@ -126,7 +126,7 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 	}
 
 	while(!done){
-		if(pollCall(1) == conn.sock){
+		if(pollCall(10) == conn.sock){
 			len = safeRecvfrom(conn.sock, pdu, MAX_BUFF,
 									 0, conn.addr, &conn.addr_len);
 			/* bad pdu */
@@ -134,7 +134,7 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 			
 			if(ntohl(header->sequence) == expected){
 				if(type == 1){
-					rcopy_close(conn, ntohl(header->sequence), seq);
+					rcopy_close(conn, ntohl(header->sequence) + 1, seq);
 				}
 				data_len = parse_data_pdu(pdu, data_buff, len);
 				sfwrite(data_buff, 1, data_len, conn.f);
@@ -144,6 +144,9 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 			}else if(ntohl(header->sequence) < expected){
 				rcopy_send_rr(seq, expected, conn.sock, conn.addr, conn.addr_len);
 			}
+		}else{
+			fprintf(stderr, "Timeout, Exiting...\n");
+			exit(-1);
 		}
 	}
 }
@@ -156,12 +159,13 @@ void rcopy_close(struct conn_info conn, uint32_t rr, uint32_t local_seq){
 	fprintf(stderr, "Server sent EOF. Cleaning up...\n");
 	fclose(conn.f);
 	len = build_rr(pdu, local_seq, rr);
+	print_buff(pdu, len);
 	safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
 	close(conn.sock);
 	reset_table();
 	exit(0);
-
 }
+
 
 void rcopy_send_rr(uint32_t seq, uint32_t rr, int sock,
 											struct sockaddr *addr, int addr_len){
@@ -201,7 +205,17 @@ struct rcopy_args checkArgs(int argc, char * argv[]){
 	args.err_rate = atof(argv[5]);
 	sstrcpy(args.hostname, argv[6]);
 	args.port = atoi(argv[7]);
-
+	if(args.wsize <= 0 || args.wsize >= MAX_WINDOW){
+		fprintf(stderr, "Bad window size\n");
+		exit(-1);
+	}
+	if(args.bs <= 0 || args.bs >= MAX_BS){
+		fprintf(stderr, "Bad block size\n");
+		exit(-1);
+	}
+	if(args.err_rate < 0 || args.err_rate > 1){
+		fprintf(stderr, "Bad error rate\n");
+	}
 	return args;
 }
 

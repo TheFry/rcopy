@@ -6,9 +6,8 @@
 #include "checksum.h"
 #include "table.h"
 
+int last_seq = -1;  /* Server sets this as the seq number of the eof pdu */
 
-
-int last_seq = -1;
 void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn){
    uint8_t flag = get_type(buffer, len);
 
@@ -59,6 +58,17 @@ uint8_t get_type(uint8_t *buffer, int len){
 }
 
 
+void server_close(struct conn_info conn){
+   fprintf(stderr, "Closing sockets and streams.\n");
+   fprintf(stderr, "Leaving an orphan :(\nStay safe out there buddy\n");
+   fclose(conn.f);
+   reset_table();
+   close(conn.sock);
+   exit(-1);
+}
+
+
+
 int build_rr(uint8_t *buffer, uint32_t sequence, uint32_t rr){
    struct pdu_header *header = (struct pdu_header *)buffer;
    uint8_t *ptr = buffer + HEADER_LEN;
@@ -91,15 +101,17 @@ int build_srej(uint8_t *buffer, uint32_t sequence, uint32_t srej){
 void server_process_rr(uint8_t *buffer, int len, struct conn_info conn){
    uint8_t *ptr = buffer + HEADER_LEN;
    uint32_t rr;
-
+   printf("RR:\n");
+   print_buff(buffer, len);
    smemcpy(&rr, ptr, sizeof(rr));
    rr = ntohl(rr);
+
+   /* Just RR'd the final packet response from client */
    if(rr - 1 == last_seq){
       fprintf(stderr, "Client has closed cleanly\n");
-      fclose(conn.f);
-      close(conn.sock);
-      exit(0);
+      server_close(conn);
    }
+
    deq(rr);
 }
 

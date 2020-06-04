@@ -36,6 +36,7 @@ void setup_child(struct sockaddr_in6 *client,
 void send_data(struct conn_info conn);
 int send_data_pdu(struct conn_info conn, uint32_t seq);
 void resend_lowest(struct conn_info conn);
+void server_close(struct conn_info conn);
 
 static int timeout;
 int main(int argc, char *argv[]){ 
@@ -166,6 +167,7 @@ void send_data(struct conn_info conn){
 		smemset(pdu, '\0', MAX_BUFF);
 		if(!window_closed && !done){			/* window_closed defined in table.c */
 			timeout = 0;
+
 			/* Try to send data, dont increment seq if nothing sent */
 			if(send_data_pdu(conn, seq)){ done = 1; }
 			seq++;
@@ -181,6 +183,7 @@ void send_data(struct conn_info conn){
 											  conn.addr, &conn.addr_len);
 				server_parse_packet(pdu, pdu_len, conn); 
 				timeout = 0;
+
 			/* None recieved, window closed. Resend lowest to prevent deadlock */
 			}else{
 				printf("Timeout\n");
@@ -190,7 +193,7 @@ void send_data(struct conn_info conn){
 		}	
 	}
 	fprintf(stderr, "Maximum timeout exceeded\n");
-	exit(-1);
+	server_close(conn);
 }
 
 
@@ -198,6 +201,7 @@ void resend_lowest(struct conn_info conn){
 	struct table_entry *entry = get_lowest();
 	int amount = 0;
 
+	fprintf(stderr, "Resending lowest window entry\n");
 	if(entry->pdu_len == 0){
 		return;
 	}
@@ -228,10 +232,12 @@ int send_data_pdu(struct conn_info conn, uint32_t seq){
       build_close_pdu(pdu, seq);
       len = HEADER_LEN;
       done = 1;
+      last_seq = seq;
    }else{
    	len = build_data_pdu(pdu, seq, file_data, amount);
    } 
 
+   printf("Sending packet:\n");
    print_buff(pdu, len);
    safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
    enq(seq, pdu, len);
