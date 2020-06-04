@@ -24,7 +24,7 @@
 /* Maximum amount of packets to send before bailing */
 #define MAX_SEND 10
 
-void processClient(int socketNum, double err_rate);
+void process_new_clients(int socketNum, double err_rate);
 void checkArgs(int argc, char *argv[], int *port, double *err_rate);
 
 void process_init(uint8_t *buffer, int len,
@@ -34,9 +34,10 @@ void setup_child(struct sockaddr_in6 *client,
 					  uint8_t *buffer, int len, int sock, double err_rate);
 
 void send_data(struct conn_info conn);
-void send_data_pdu(struct conn_info conn, uint32_t seq);
+int send_data_pdu(struct conn_info conn, uint32_t seq);
 void resend_lowest(struct conn_info conn);
 
+static int timeout;
 int main(int argc, char *argv[]){ 
 	int socketNum = 0;				
 	int portNumber = 0;
@@ -46,14 +47,14 @@ int main(int argc, char *argv[]){
 	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
 	
 	socketNum = udpServerSetup(portNumber);
-	processClient(socketNum, err_rate);
+	process_new_clients(socketNum, err_rate);
 
 	close(socketNum);
 	return 0;
 }
 
 
-void processClient(int socketNum, double err_rate){
+void process_new_clients(int socketNum, double err_rate){
 	int recv_len = 0; 
 	uint8_t buffer[MAX_BUFF] = "";	  
 	struct sockaddr_in6 client;		
@@ -61,14 +62,19 @@ void processClient(int socketNum, double err_rate){
 	
 	printf("Ready for new connections\n");
 	buffer[0] = '\0';
+	setupPollSet();
+	addToPollSet(socketNum);
 	while(1){
-		smemset(buffer, '\0', MAX_BUFF);
-		recv_len = safeRecvfrom(socketNum, buffer, MAX_BUFF, 0,
-									  (struct sockaddr *)&client, &clientAddrLen);
-		
-		printf("Main: Received message from client with ");
-		printIPInfo(&client);
-		process_init(buffer, recv_len, &client, socketNum, err_rate);
+
+		if(pollCall(1) >= 0){
+			smemset(buffer, '\0', MAX_BUFF);
+			recv_len = safeRecvfrom(socketNum, buffer, MAX_BUFF, 0,
+										  (struct sockaddr *)&client, &clientAddrLen);
+			
+			printf("Main: Received message from client with ");
+			printIPInfo(&client);
+			process_init(buffer, recv_len, &client, socketNum, err_rate);
+		}
 	}
 }
 
@@ -133,17 +139,20 @@ void setup_child(struct sockaddr_in6 *client,
 	conn.addr_len = sizeof(struct sockaddr_in6);
 	conn.f = f;
 
+	/* Remove main server socket */
+	removeFromPollSet(sock);
 	send_data(conn);
 }
 
 
 /* Create new socket and send data to client */
 void send_data(struct conn_info conn){
-	int timeout = 0;
+	timeout = 0;
 	int pdu_len = 0;
 	uint8_t file_data[MAX_BUFF];
 	uint8_t pdu[MAX_BUFF] = "";
 	uint32_t seq = 0;
+	int done = 0;
 
 	/* Child uses new socket to talk to client */
 	conn.sock = socket(AF_INET6, SOCK_DGRAM, 0);
@@ -155,9 +164,10 @@ void send_data(struct conn_info conn){
 	while(timeout < MAX_SEND){
 		smemset(file_data, '\0', MAX_BUFF);
 		smemset(pdu, '\0', MAX_BUFF);
-		if(!window_closed){			/* window_closed defined in table.c */
+		if(!window_closed && !done){			/* window_closed defined in table.c */
 			timeout = 0;
-			send_data_pdu(conn, seq);
+			/* Try to send data, dont increment seq if nothing sent */
+			if(send_data_pdu(conn, seq)){ done = 1; }
 			seq++;
 			if(pollCall(0) > 0){
 				pdu_len = safeRecvfrom(conn.sock, pdu, MAX_BUFF,
@@ -171,6 +181,7 @@ void send_data(struct conn_info conn){
 											  conn.addr, &conn.addr_len);
 				server_parse_packet(pdu, pdu_len, conn); 
 				timeout = 0;
+			/* None recieved, window closed. Resend lowest to prevent deadlock */
 			}else{
 				printf("Timeout\n");
 				resend_lowest(conn);
@@ -178,8 +189,9 @@ void send_data(struct conn_info conn){
 			}
 		}	
 	}
+	fprintf(stderr, "Maximum timeout exceeded\n");
+	exit(-1);
 }
-
 
 
 void resend_lowest(struct conn_info conn){
@@ -197,22 +209,35 @@ void resend_lowest(struct conn_info conn){
 	}
 }
 
-void send_data_pdu(struct conn_info conn, uint32_t seq){
+
+/* Read file and send data pdu to rcopy.
+ * If EOF, send a close pdu to rcopy.
+ * Set global close seq number which is used to determine when the final
+ * packet has been rr'd
+ */
+int send_data_pdu(struct conn_info conn, uint32_t seq){
    size_t amount = 0;
    uint8_t pdu[MAX_BUFF] = "";
    uint8_t file_data[MAX_BUFF] = "";
    int len;
+   int done = 0;
 
    if((amount = sfread(file_data, 1, conn.bs, conn.f)) == 0){
-      //Go to done function
-      fprintf(stderr, "Done with data\n");
-      exit(0);
-   }
-   len = build_data_pdu(pdu, seq, file_data, amount);
-      
+   	/* EOF */
+      fprintf(stderr, "Done reading data\n");
+      build_close_pdu(pdu, seq);
+      len = HEADER_LEN;
+      done = 1;
+   }else{
+   	len = build_data_pdu(pdu, seq, file_data, amount);
+   } 
+
    print_buff(pdu, len);
    safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
    enq(seq, pdu, len);
+
+   if(done){ return 1; }
+   return 0;
 }
 
 

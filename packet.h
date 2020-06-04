@@ -17,9 +17,11 @@ struct pdu_header{
 #define SREJ_FLAG 6
 #define INIT_FLAG 7
 #define BAD_FLAG 8
+#define CLOSE_FLAG 9
 
 #define BAD_PACKET 0
 
+extern int last_seq;
 
 void print_buff(uint8_t *buff, int len);
 
@@ -35,6 +37,7 @@ int rcopy_parse_packet(uint8_t *buff, int len);
 uint8_t get_type(uint8_t *buffer, int len);
 int build_bad_pdu(uint8_t *buffer);
 int build_rr(uint8_t *buffer, uint32_t sequence, uint32_t rr);
-void server_process_rr(uint8_t *buffer, int len);
+void server_process_rr(uint8_t *buffer, int len, struct conn_info conn);
 void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn);
+void build_close_pdu(uint8_t *buffer, uint32_t seq);
 #endif

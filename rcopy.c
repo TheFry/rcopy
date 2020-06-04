@@ -26,59 +26,57 @@
 #define xstr(a) str(a)
 #define str(a) 
 
-void initC(int socketNum, struct sockaddr_in6 *server,
-															 struct rcopy_args args, FILE *f);
+void initC(struct conn_info conn, struct rcopy_args args);
 int getData(char * buffer);
 struct rcopy_args checkArgs(int argc, char * argv[]);
 void print_args(struct rcopy_args args);
 FILE* init_file(char *path);
-void recv_data(int socketNum, struct sockaddr *addr,
-					struct rcopy_args args, uint8_t *buffer, int len, FILE *f);
+void recv_data(struct conn_info conn, uint8_t *pdu, int len);
 void rcopy_send_rr(uint32_t seq, uint32_t rr, int sock,
 											struct sockaddr *addr, int addr_len);
 
-int main (int argc, char *argv[]){
-	int socketNum = 0;				
+void rcopy_close(struct conn_info conn, uint32_t rr, uint32_t local_seq);
+
+int main (int argc, char *argv[]){	
+	struct conn_info conn;		
 	struct sockaddr_in6 server;		// Supports 4 and 6 but requires IPv6 struct
 	struct rcopy_args args;
-	FILE *local_file;
 
 	args = checkArgs(argc, argv);
-	local_file = init_file(args.local);
+	conn.f = init_file(args.local);
+	conn.sock = setupUdpClientToServer(&server, args.hostname, args.port);
+	conn.addr = (struct sockaddr *)&server;
 	sendtoErr_init(args.err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
-	socketNum = setupUdpClientToServer(&server, args.hostname, args.port);
-	initC(socketNum, &server, args, local_file);
-	close(socketNum);
-
+	initC(conn, args);
 	return 0;
 }
 
-
 /* Initialize the connection */
-void initC(int socketNum, struct sockaddr_in6 *server,
-															 struct rcopy_args args, FILE *f){
+void initC(struct conn_info conn, struct rcopy_args args){
 
-	int serverAddrLen = sizeof(struct sockaddr_in6);
 	int dataLen = 0; 
 	uint8_t pdu[MAX_BUFF] = "";
 	uint8_t recv_buff[MAX_BUFF] = "";
 	int recv_len = 0;
 	int i = 0;
 	int flag = 0;
-	struct sockaddr *addr = (struct sockaddr *)server;
-	setupPollSet();
-	addToPollSet(socketNum);
 
+	setupPollSet();
+	addToPollSet(conn.sock);
+
+	conn.addr_len = sizeof(struct sockaddr_in6);
+	conn.wsize = args.wsize;
+	conn.bs = args.bs;
 	dataLen = build_init_pdu(pdu, args.remote, args.wsize, args.bs);
 
-	safeSendto(socketNum, pdu, dataLen, 0, addr, serverAddrLen);
-	i = 1;
+	safeSendto(conn.sock, pdu, dataLen, 0, conn.addr, conn.addr_len);
+	i = 0;
 
 	/* Send filename 10 times max */
 	while(i < 10){
-		if(pollCall(1000) == socketNum){
-			recv_len = safeRecvfrom(socketNum, recv_buff, MAX_BUFF,
-											0, addr, &serverAddrLen);
+		if(pollCall(1000) == conn.sock){
+			recv_len = safeRecvfrom(conn.sock, recv_buff, MAX_BUFF,
+											0, conn.addr, &conn.addr_len);
 
 			if((flag = get_type(recv_buff, recv_len)) == BAD_FLAG){
 				fprintf(stderr, "Remote file doesn't exist on server\n");
@@ -87,16 +85,16 @@ void initC(int socketNum, struct sockaddr_in6 *server,
 
 			if(flag == DATA_FLAG){
 				fprintf(stderr, "I'm ready for data!\n");
-				recv_data(socketNum, addr, args, recv_buff, recv_len, f);
+				recv_data(conn, recv_buff, recv_len);
 			}
 
 			/* Bad packet, resend */
-			safeSendto(socketNum, pdu, dataLen, 0, addr, serverAddrLen);
+			safeSendto(conn.sock, pdu, dataLen, 0, conn.addr, conn.addr_len);
 			i += 1;
 
 		}else{
 			fprintf(stderr, "No response\n");
-			safeSendto(socketNum, pdu, dataLen, 0, addr, serverAddrLen);
+			safeSendto(conn.sock, pdu, dataLen, 0, conn.addr, conn.addr_len);
 			i += 1;
 		}
 	}
@@ -107,22 +105,19 @@ void initC(int socketNum, struct sockaddr_in6 *server,
 
 
 
-void recv_data(int socketNum, struct sockaddr *addr,
-					struct rcopy_args args, uint8_t *pdu, int len, FILE *f){
-	
+void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 	uint8_t data_buff[MAX_BUFF] = "";
 	int data_len = 0;
-	int addr_len = sizeof(struct sockaddr_in6);
 	uint32_t seq = 1;
-	uint32_t waiting_on[args.wsize];
 	uint32_t expected = 0;
-	init_table(args.wsize);
+	init_table(conn.wsize);
 	struct pdu_header *header = (struct pdu_header *)pdu;
 	int done = 0;
-	int i = 0;
+	int type;
+
 	if(ntohl(header->sequence) == expected){
 		data_len = parse_data_pdu(pdu, data_buff, len);
-		sfwrite(data_buff, 1, data_len, f);
+		sfwrite(data_buff, 1, data_len, conn.f);
 		expected++;
 		len = build_rr(data_buff, seq, expected);
 		printf("RR\n");
@@ -131,25 +126,42 @@ void recv_data(int socketNum, struct sockaddr *addr,
 	}
 
 	while(!done){
-		if(pollCall(1) == socketNum){
-			len = safeRecvfrom(socketNum, pdu, MAX_BUFF,
-									 0, addr, &addr_len);
-
-			if(rcopy_parse_packet(pdu, len)){ continue; }  /*Bad packets, ignore*/
+		if(pollCall(1) == conn.sock){
+			len = safeRecvfrom(conn.sock, pdu, MAX_BUFF,
+									 0, conn.addr, &conn.addr_len);
+			/* bad pdu */
+			if((type = rcopy_parse_packet(pdu, len)) == -1){ continue; }
 			
 			if(ntohl(header->sequence) == expected){
+				if(type == 1){
+					rcopy_close(conn, ntohl(header->sequence), seq);
+				}
 				data_len = parse_data_pdu(pdu, data_buff, len);
-				sfwrite(data_buff, 1, data_len, f);
+				sfwrite(data_buff, 1, data_len, conn.f);
 				expected++;
-				rcopy_send_rr(seq, expected, socketNum, addr, addr_len);
+				rcopy_send_rr(seq, expected, conn.sock, conn.addr, conn.addr_len);
 				seq++;
 			}else if(ntohl(header->sequence) < expected){
-				rcopy_send_rr(seq, expected, socketNum, addr, addr_len);
+				rcopy_send_rr(seq, expected, conn.sock, conn.addr, conn.addr_len);
 			}
 		}
 	}
 }
 
+
+void rcopy_close(struct conn_info conn, uint32_t rr, uint32_t local_seq){
+	uint8_t pdu[MAX_BUFF] = "";
+	int len;
+
+	fprintf(stderr, "Server sent EOF. Cleaning up...\n");
+	fclose(conn.f);
+	len = build_rr(pdu, local_seq, rr);
+	safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
+	close(conn.sock);
+	reset_table();
+	exit(0);
+
+}
 
 void rcopy_send_rr(uint32_t seq, uint32_t rr, int sock,
 											struct sockaddr *addr, int addr_len){

@@ -8,7 +8,7 @@
 
 
 
-
+int last_seq = -1;
 void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn){
    uint8_t flag = get_type(buffer, len);
 
@@ -16,7 +16,7 @@ void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn){
       case BAD_PACKET:
          break;
       case RR_FLAG:
-         server_process_rr(buffer, len);
+         server_process_rr(buffer, len, conn);
          break;
       case SREJ_FLAG:
          server_process_srej(buffer, len, conn);
@@ -25,7 +25,6 @@ void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn){
          fprintf(stderr, "Unknown packet type. Ignoring\n");
    }  
 }
-
 
 
 int rcopy_parse_packet(uint8_t *buff, int len){
@@ -37,13 +36,14 @@ int rcopy_parse_packet(uint8_t *buff, int len){
          return -1;
       case DATA_FLAG:
          return 0;
+      case CLOSE_FLAG:
+         return 1;
       default:
          fprintf(stderr, "Not data packet\n");
          print_buff(buff, len);
          return -1;
    }
 }
-
 
 
 uint8_t get_type(uint8_t *buffer, int len){
@@ -87,12 +87,19 @@ int build_srej(uint8_t *buffer, uint32_t sequence, uint32_t srej){
 }
 
 
-void server_process_rr(uint8_t *buffer, int len){
+/* Process RR's, close if RR'd the server close packet */
+void server_process_rr(uint8_t *buffer, int len, struct conn_info conn){
    uint8_t *ptr = buffer + HEADER_LEN;
    uint32_t rr;
 
    smemcpy(&rr, ptr, sizeof(rr));
    rr = ntohl(rr);
+   if(rr - 1 == last_seq){
+      fprintf(stderr, "Client has closed cleanly\n");
+      fclose(conn.f);
+      close(conn.sock);
+      exit(0);
+   }
    deq(rr);
 }
 
@@ -166,6 +173,16 @@ int build_init_pdu(uint8_t *buffer, char *file, uint32_t wsize, uint32_t bs){
    check_val = in_cksum((unsigned short *)buffer, buff_size);
    smemcpy(header->crc, &check_val, sizeof(uint8_t) * 2);
    return(buff_size);
+}
+
+
+void build_close_pdu(uint8_t *buffer, uint32_t seq){
+   unsigned short chk_val = 0;
+   struct pdu_header *header = (struct pdu_header *)buffer;
+
+   build_header(buffer, seq, CLOSE_FLAG);
+   chk_val = in_cksum((unsigned short *)buffer, HEADER_LEN);
+   smemcpy(header->crc, &chk_val, sizeof(chk_val));
 }
 
 

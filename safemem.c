@@ -140,7 +140,6 @@ size_t sfread(void *ptr, size_t size, size_t bs, FILE *stream){
 
 size_t sfwrite(void *ptr, size_t size, size_t bs, FILE *stream){
    size_t amount;
-   int err_val = 0;
 
    amount = fwrite(ptr, size, bs, stream);
    if(amount != bs){
