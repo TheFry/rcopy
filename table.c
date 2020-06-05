@@ -79,7 +79,7 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
    table_index = (table_index + 1) % window_size;
    current += 1;
 
-   if(current == upper){ window_closed = 1; }
+   if(current == upper){ window_closed = 1; fprintf(stderr, "Window closed\n"); }
    return 0;
 }
 
@@ -96,7 +96,7 @@ void deq(uint32_t rr){
    }
    if((seq_table_index = get_entry(rr)) == -1){
       fprintf(stderr, "Error getting entry for deq\n");
-      exit(-1);
+      return;
    }
 
    /* Sanity check */
@@ -107,7 +107,9 @@ void deq(uint32_t rr){
 
    lower = rr;
    upper = lower + window_size;
-   window_closed = 0;
+   if(current != upper){
+      window_closed = 0;
+   }
 }
 
 
@@ -115,12 +117,12 @@ void print_table(){
    int i;
    struct table_entry *entry;
 
-   printf("\n\nTable:\n");
+   fprintf(stderr, "\n\nTable:\n");
    for(i = 0; i < window_size; i++){
       entry = &table[i];
-      printf("Entry %d\n", i);
-      printf("Seq num #: %u\n", entry->seq);
-      printf("Printing pdu...\n\n");
+      fprintf(stderr, "Entry %d\n", i);
+      fprintf(stderr, "Seq num #: %u\n", entry->seq);
+      fprintf(stderr, "Printing pdu...\n\n");
       print_buff(entry->pdu, entry->pdu_len);
    }
 }
@@ -152,7 +154,6 @@ struct table_entry* get_entry_struct(uint32_t my_seq){
          return &table[i];
       }
    }
-   fprintf(stderr, "Can't find entry in the table\n");
    return NULL;
 }
 

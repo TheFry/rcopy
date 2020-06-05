@@ -33,8 +33,11 @@ void print_args(struct rcopy_args args);
 FILE* init_file(char *path);
 void recv_data(struct conn_info conn, uint8_t *pdu, int len);
 void rcopy_send_rr(uint32_t seq, uint32_t rr, struct conn_info conn);
-
+void rcopy_send_srej(uint32_t seq, uint32_t expected, struct conn_info conn);
 void rcopy_write_data(uint8_t *buffer, int len, struct conn_info conn);
+uint32_t write_window(uint32_t expected, struct conn_info conn);
+void handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
+												uint32_t *expected, struct conn_info conn);
 
 int main (int argc, char *argv[]){	
 	struct conn_info conn;		
@@ -45,7 +48,7 @@ int main (int argc, char *argv[]){
 	conn.f = init_file(args.local);
 	conn.sock = setupUdpClientToServer(&server, args.hostname, args.port);
 	conn.addr = (struct sockaddr *)&server;
-	sendtoErr_init(args.err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
+	sendtoErr_init(args.err_rate, DROP_ON, FLIP_ON, DEBUG_ON, RSEED_OFF);
 	initC(conn, args);
 	return 0;
 }
@@ -112,19 +115,11 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 	struct pdu_header *header = (struct pdu_header *)pdu;
 	int done = 0;
 	int type;
-	int index = 0;
-	uint32_t pdu_seq = 0;
+	uint32_t pdu_seq = ntohl(header->sequence);
 
-	if(ntohl(header->sequence) == expected){
-		data_len = parse_data_pdu(pdu, data_buff, len);
-		sfwrite(data_buff, 1, data_len, conn.f);
-		expected++;
-		len = build_rr(data_buff, seq, expected);
-		printf("RR\n");
-		print_buff(data_buff, len);
-		seq++;
-	}
-
+	handle_first_packet(pdu, len, &pdu_seq, &expected, conn);
+	seq = pdu_seq;
+	pdu_seq = 0;
 
 	while(!done){
 		if(pollCall(10) == conn.sock){
@@ -132,27 +127,26 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 									 0, conn.addr, &conn.addr_len);
 			/* bad pdu */
 			if((type = rcopy_parse_packet(pdu, len)) == -1){ continue; }
-			
+			data_len = parse_data_pdu(pdu, data_buff, len);
 			pdu_seq = ntohl(header->sequence);
 			if(pdu_seq < expected){
 				rcopy_send_rr(seq, expected, conn);
 
 			}else if(pdu_seq > expected){
-				if(put_entry(pdu, len, pdu_seq)){
-
+				if(!put_entry(pdu, data_len, pdu_seq)){
+					rcopy_send_rr(expected, seq, conn);
 				}
-
 			}else{
 				if(type == 1){
 					rcopy_close(conn, ntohl(header->sequence) + 1, seq);
 				}
-				data_len = parse_data_pdu(pdu, data_buff, len);
+
 				sfwrite(data_buff, 1, data_len, conn.f);
 				expected++;
+				expected = write_window(expected, conn);
 				rcopy_send_rr(seq, expected, conn);
 				seq++;
 			}
-
 		}else{
 			fprintf(stderr, "Timeout, Exiting...\n");
 			exit(-1);
@@ -161,24 +155,74 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 }
 
 
-void handle_srej(uint8_t *buffer, uint32_t *srejs, uint32_t expected){
+
+void handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
+												uint32_t *expected, struct conn_info conn){
+	uint32_t seq = 1;
+	uint8_t data_buff[MAX_BUFF] = "";
+	int data_len = parse_data_pdu(pdu, data_buff, pdu_len);
+
+	if(*pdu_seq < *expected){
+		fprintf(stderr, "Initial seq is less than 1\n");
+
+	}else if(*pdu_seq > *expected){
+		if(!put_entry(pdu, data_len, *pdu_seq)){
+			rcopy_send_rr(*expected, seq, conn);
+		}
+	}else{
+		sfwrite(data_buff, 1, data_len, conn.f);
+		*expected += 1;
+		rcopy_send_rr(seq, *expected, conn);
+		seq++;
+		*pdu_seq = seq;
+	}
 
 }
+
+
+uint32_t write_window(uint32_t expected, struct conn_info conn){
+	int done = 0;
+	int i;
+	struct table_entry *entry;
+
+	while(done < conn.wsize){
+		for(i = 0; i < conn.wsize; i++){
+			entry = get_entry_struct(i);
+
+			/* Found in table */
+			if(entry != NULL && entry->seq == expected){
+				sfwrite(entry->pdu, 1, entry->pdu_len, conn.f);
+				clear_entry(entry->seq);
+				expected++;
+			}
+		}
+		done++;
+	}
+	return expected;
+}
+
+
+void rcopy_send_srej(uint32_t seq, uint32_t expected, struct conn_info conn){
+	uint8_t buffer[MAX_BUFF] = "";
+	int len;
+
+	len = build_srej(buffer, seq, expected);
+	//printf("SREJ\n");
+	//print_buff(buffer, len);
+	safeSendto(conn.sock, buffer, len, 0, conn.addr, conn.addr_len);
+}
+
 
 void rcopy_send_rr(uint32_t seq, uint32_t rr, struct conn_info conn){
 	uint8_t buffer[MAX_BUFF] = "";
 	int len;
 
 	len = build_rr(buffer, seq, rr);
-	printf("RR\n");
-	print_buff(buffer, len);
+	//printf("RR\n");
+	//print_buff(buffer, len);
 	safeSendto(conn.sock, buffer, len, 0, conn.addr, conn.addr_len);
 }
 
-
-void rcopy_write_data(uint8_t *buf, int len, struct conn_info conn){
-
-}
 
 FILE* init_file(char *path){
 	FILE* f = sfopen(path, "w");

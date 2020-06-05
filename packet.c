@@ -39,7 +39,7 @@ int rcopy_parse_packet(uint8_t *buff, int len){
          return 1;
       default:
          fprintf(stderr, "Not data packet\n");
-         print_buff(buff, len);
+         //print_buff(buff, len);
          return -1;
    }
 }
@@ -75,7 +75,7 @@ void rcopy_close(struct conn_info conn, uint32_t rr, uint32_t local_seq){
    fprintf(stderr, "Server sent EOF. Cleaning up...\n");
    fclose(conn.f);
    len = build_rr(pdu, local_seq, rr);
-   print_buff(pdu, len);
+   //print_buff(pdu, len);
    safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
    close(conn.sock);
    reset_table();
@@ -116,8 +116,8 @@ int build_srej(uint8_t *buffer, uint32_t sequence, uint32_t srej){
 void server_process_rr(uint8_t *buffer, int len, struct conn_info conn){
    uint8_t *ptr = buffer + HEADER_LEN;
    uint32_t rr;
-   printf("RR:\n");
-   print_buff(buffer, len);
+   //printf("RR:\n");
+   //print_buff(buffer, len);
    smemcpy(&rr, ptr, sizeof(rr));
    rr = ntohl(rr);
 
@@ -127,7 +127,7 @@ void server_process_rr(uint8_t *buffer, int len, struct conn_info conn){
       server_close(conn);
    }
 
-   deq(rr);
+   deq(rr - 1);
 }
 
 
@@ -185,7 +185,7 @@ int build_init_pdu(uint8_t *buffer, char *file, uint32_t wsize, uint32_t bs){
    uint8_t name_len = strlen(file);
 
    build_header(buffer, 0, INIT_FLAG);
-   print_buff(buffer, HEADER_LEN);
+   //print_buff(buffer, HEADER_LEN);
    smemcpy(ptr, &name_len, sizeof(name_len));
    ptr += sizeof(name_len);
    smemcpy(ptr, file, name_len);
@@ -252,7 +252,7 @@ void print_buff(uint8_t *buff, int len){
    int line_break = 70;
    int i;
    
-   printf("Buffer Data Length: %u\n", len);
+   fprintf(stderr, "Buffer Data Length: %u\n", len);
 
    if((validate_checksum(buff, len))){
       fprintf(stderr, "Checksum invalid, bad packet\n");

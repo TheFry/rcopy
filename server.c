@@ -45,7 +45,7 @@ int main(int argc, char *argv[]){
 	double err_rate = 0;
 
 	checkArgs(argc, argv, &portNumber, &err_rate);
-	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
+	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_ON, RSEED_OFF);
 	
 	socketNum = udpServerSetup(portNumber);
 	process_new_clients(socketNum, err_rate);
@@ -237,8 +237,7 @@ int send_data_pdu(struct conn_info conn, uint32_t seq){
    	len = build_data_pdu(pdu, seq, file_data, amount);
    } 
 
-   printf("Sending packet:\n");
-   print_buff(pdu, len);
+   //print_buff(pdu, len);
    safeSendto(conn.sock, pdu, len, 0, conn.addr, conn.addr_len);
    enq(seq, pdu, len);
 
