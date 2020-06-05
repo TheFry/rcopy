@@ -38,6 +38,7 @@ void rcopy_write_data(uint8_t *buffer, int len, struct conn_info conn);
 uint32_t write_window(uint32_t expected, struct conn_info conn);
 void handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
 												uint32_t *expected, struct conn_info conn);
+int check_srejs(uint32_t srej, uint32_t *srejs, uint32_t wsize);
 
 int main (int argc, char *argv[]){	
 	struct conn_info conn;		
@@ -115,8 +116,9 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 	struct pdu_header *header = (struct pdu_header *)pdu;
 	int done = 0;
 	int type;
+	int srej_sent = 0;
 	uint32_t pdu_seq = ntohl(header->sequence);
-
+	uint32_t srejs[conn.wsize];
 	handle_first_packet(pdu, len, &pdu_seq, &expected, conn);
 	seq = pdu_seq;
 	pdu_seq = 0;
@@ -129,18 +131,22 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 			if((type = rcopy_parse_packet(pdu, len)) == -1){ continue; }
 			data_len = parse_data_pdu(pdu, data_buff, len);
 			pdu_seq = ntohl(header->sequence);
+			
 			if(pdu_seq < expected){
 				rcopy_send_rr(seq, expected, conn);
 
 			}else if(pdu_seq > expected){
-				if(!put_entry(pdu, data_len, pdu_seq)){
-					rcopy_send_rr(expected, seq, conn);
+				put_entry(pdu, data_len, pdu_seq);
+				if(!srej_sent){
+					rcopy_send_srej(seq, expected, conn);
+					srej_sent = 1;
 				}
+
 			}else{
 				if(type == 1){
 					rcopy_close(conn, ntohl(header->sequence) + 1, seq);
 				}
-
+				srej_sent = 0;
 				sfwrite(data_buff, 1, data_len, conn.f);
 				expected++;
 				expected = write_window(expected, conn);
@@ -155,6 +161,16 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 }
 
 
+int check_srejs(uint32_t srej, uint32_t *srejs, uint32_t wsize){
+	int i;
+
+	for(i = 0; i < wsize; i++){
+		if(srejs[i] == srej){
+			return 1;
+		}
+	}
+	return 0;
+}
 
 void handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
 												uint32_t *expected, struct conn_info conn){
@@ -184,20 +200,22 @@ uint32_t write_window(uint32_t expected, struct conn_info conn){
 	int done = 0;
 	int i;
 	struct table_entry *entry;
-
+	print_table();
 	while(done < conn.wsize){
 		for(i = 0; i < conn.wsize; i++){
-			entry = get_entry_struct(i);
+			entry = &table[i];
 
 			/* Found in table */
 			if(entry != NULL && entry->seq == expected){
 				sfwrite(entry->pdu, 1, entry->pdu_len, conn.f);
 				clear_entry(entry->seq);
 				expected++;
+				break;
 			}
 		}
 		done++;
 	}
+	fprintf(stderr, "RR should be %u\n", expected);
 	return expected;
 }
 

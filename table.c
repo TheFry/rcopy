@@ -122,8 +122,8 @@ void print_table(){
       entry = &table[i];
       fprintf(stderr, "Entry %d\n", i);
       fprintf(stderr, "Seq num #: %u\n", entry->seq);
-      fprintf(stderr, "Printing pdu...\n\n");
-      print_buff(entry->pdu, entry->pdu_len);
+      //fprintf(stderr, "Printing pdu...\n\n");
+      //print_buff(entry->pdu, entry->pdu_len);
    }
 }
 
@@ -168,7 +168,7 @@ int clear_entry(uint32_t my_seq){
          smemset(table[i].pdu, '\0', MAX_BUFF);
       }
    }
-   fprintf(stderr, "Can't find entry in the table\n");
+   fprintf(stderr, "Can't find entry %u in the table\n", my_seq);
    return -1;
 }
 
@@ -182,7 +182,7 @@ int put_entry(uint8_t *buffer, int len, uint32_t my_seq){
 
       /* Otherwise, check for free space */
       if(table[i].pdu_len == 0){
-         table[i].seq = 0;
+         table[i].seq = my_seq;
          table[i].pdu_len = len;
          smemcpy(table[i].pdu, buffer, len);
          return 0;
