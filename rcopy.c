@@ -122,7 +122,7 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 	pdu_seq = 0;
 
 	while(!done){
-		if(pollCall(10) == conn.sock){
+		if(pollCall(10000) == conn.sock){
 			len = safeRecvfrom(conn.sock, pdu, MAX_BUFF,
 									 0, conn.addr, &conn.addr_len);
 			/* bad pdu */

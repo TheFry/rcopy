@@ -178,7 +178,7 @@ void send_data(struct conn_info conn){
 				continue;
 			}
 		}else{
-			if(pollCall(1) > 0){
+			if(pollCall(1000) > 0){
 				pdu_len = safeRecvfrom(conn.sock, pdu, MAX_BUFF, 0,
 											  conn.addr, &conn.addr_len);
 				server_parse_packet(pdu, pdu_len, conn); 
