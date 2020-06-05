@@ -49,7 +49,7 @@ int main (int argc, char *argv[]){
 	conn.f = init_file(args.local);
 	conn.sock = setupUdpClientToServer(&server, args.hostname, args.port);
 	conn.addr = (struct sockaddr *)&server;
-	sendtoErr_init(args.err_rate, DROP_ON, FLIP_ON, DEBUG_ON, RSEED_OFF);
+	sendtoErr_init(args.err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_OFF);
 	initC(conn, args);
 	return 0;
 }
@@ -136,7 +136,7 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 				rcopy_send_rr(seq, expected, conn);
 
 			}else if(pdu_seq > expected){
-				put_entry(pdu, data_len, pdu_seq);
+				put_entry(data_buff, data_len, pdu_seq);
 				if(!srej_sent){
 					rcopy_send_srej(seq, expected, conn);
 					srej_sent = 1;
@@ -200,7 +200,7 @@ uint32_t write_window(uint32_t expected, struct conn_info conn){
 	int done = 0;
 	int i;
 	struct table_entry *entry;
-	print_table();
+
 	while(done < conn.wsize){
 		for(i = 0; i < conn.wsize; i++){
 			entry = &table[i];
@@ -215,7 +215,6 @@ uint32_t write_window(uint32_t expected, struct conn_info conn){
 		}
 		done++;
 	}
-	fprintf(stderr, "RR should be %u\n", expected);
 	return expected;
 }
 

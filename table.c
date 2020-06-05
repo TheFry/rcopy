@@ -71,7 +71,7 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
       table_index = 0;
    }
    /* clear pdu entry */
-   smemset(table[table_index].pdu, '5', pdu_len);
+   smemset(table[table_index].pdu, '0', pdu_len);
 
    table[table_index].seq = seq;
    table[table_index].pdu_len = pdu_len;
@@ -79,7 +79,7 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
    table_index = (table_index + 1) % window_size;
    current += 1;
 
-   if(current == upper){ window_closed = 1; fprintf(stderr, "Window closed\n"); }
+   if(current == upper){ window_closed = 1; }
    return 0;
 }
 
@@ -96,7 +96,6 @@ void deq(uint32_t rr){
    }
    if((seq_table_index = get_entry(rr)) == -1){
       fprintf(stderr, "Error getting entry for deq\n");
-      return;
    }
 
    /* Sanity check */
@@ -120,10 +119,12 @@ void print_table(){
    fprintf(stderr, "\n\nTable:\n");
    for(i = 0; i < window_size; i++){
       entry = &table[i];
+      if(entry->seq == 0){continue;}
       fprintf(stderr, "Entry %d\n", i);
       fprintf(stderr, "Seq num #: %u\n", entry->seq);
-      //fprintf(stderr, "Printing pdu...\n\n");
-      //print_buff(entry->pdu, entry->pdu_len);
+      fprintf(stderr, "Printing pdu...\n");
+      print_buff(entry->pdu, entry->pdu_len);
+      fprintf(stderr, "\n");
    }
 }
 
@@ -159,7 +160,7 @@ struct table_entry* get_entry_struct(uint32_t my_seq){
 
 
 /* Return the index cleared, or -1 on error */
-int clear_entry(uint32_t my_seq){
+void clear_entry(uint32_t my_seq){
    int i = 0;
    for(i = 0; i < window_size; i++){
       if(table[i].seq == my_seq){
@@ -168,8 +169,6 @@ int clear_entry(uint32_t my_seq){
          smemset(table[i].pdu, '\0', MAX_BUFF);
       }
    }
-   fprintf(stderr, "Can't find entry %u in the table\n", my_seq);
-   return -1;
 }
 
 
@@ -179,9 +178,10 @@ int put_entry(uint8_t *buffer, int len, uint32_t my_seq){
    for(i = 0; i < window_size; i++){
       /* If already in table, return the index */
       if(table[i].seq == my_seq){ return 1; }
-
+      //print_buff(buffer, len);
       /* Otherwise, check for free space */
       if(table[i].pdu_len == 0){
+         smemset(table[i].pdu, '0', MAX_BUFF);
          table[i].seq = my_seq;
          table[i].pdu_len = len;
          smemcpy(table[i].pdu, buffer, len);

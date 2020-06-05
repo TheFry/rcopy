@@ -29,7 +29,7 @@ void print_table();
 int get_entry(uint32_t seq);
 struct table_entry* get_entry_struct(uint32_t my_seq);
 int put_entry(uint8_t *buffer, int len, uint32_t my_seq);
-int clear_entry(uint32_t my_seq);
+void clear_entry(uint32_t my_seq);
 
 struct table_entry* get_lowest();
 struct table_entry* get_srej(uint32_t srej);

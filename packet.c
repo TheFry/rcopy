@@ -31,7 +31,7 @@ int rcopy_parse_packet(uint8_t *buff, int len){
 
    switch(flag){
       case BAD_PACKET:
-         fprintf(stderr, "Bad packet\n");
+         //fprintf(stderr, "Bad packet\n");
          return -1;
       case DATA_FLAG:
          return 0;
@@ -50,7 +50,7 @@ uint8_t get_type(uint8_t *buffer, int len){
 
    if(validate_checksum(buffer, len)){
       /* Bad checksum */
-      fprintf(stderr, "Bad packet\n");
+      //fprintf(stderr, "Bad packet\n");
       return 0;
    }
 
@@ -127,7 +127,7 @@ void server_process_rr(uint8_t *buffer, int len, struct conn_info conn){
       server_close(conn);
    }
 
-   deq(rr - 1);
+   deq(rr);
 }
 
 
