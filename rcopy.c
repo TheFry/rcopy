@@ -141,6 +141,7 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 				if(!srej_sent){
 					rcopy_send_srej(seq, expected, conn);
 					srej_sent = 1;
+					seq++;
 				}
 
 			}else{
@@ -185,8 +186,9 @@ int handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
 
 	}else if(*pdu_seq > *expected){
 		fprintf(stderr, "First data packet out of sequence\n");
-		put_entry(pdu, data_len, *pdu_seq);
+		put_entry(data_buff, data_len, *pdu_seq);
 		rcopy_send_srej(seq, *expected, conn);
+		seq++;
 		return 1;
 	}
 
