@@ -230,7 +230,7 @@ int send_data_pdu(struct conn_info conn, uint32_t seq){
       build_close_pdu(pdu, seq);
       len = HEADER_LEN;
       done = 1;
-      last_seq = seq;
+      user_last_seq = seq;
    }else{
    	len = build_data_pdu(pdu, seq, file_data, amount);
    } 

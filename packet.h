@@ -22,7 +22,7 @@ struct pdu_header{
 
 #define BAD_PACKET 0
 
-extern int last_seq;
+extern int user_last_seq;
 
 void print_buff(uint8_t *buff, int len);
 
