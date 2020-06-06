@@ -49,7 +49,7 @@ int main (int argc, char *argv[]){
 	conn.f = init_file(args.local);
 	conn.sock = setupUdpClientToServer(&server, args.hostname, args.port);
 	conn.addr = (struct sockaddr *)&server;
-	sendtoErr_init(args.err_rate, DROP_ON, FLIP_ON, DEBUG_ON, RSEED_ON);
+	sendtoErr_init(args.err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_ON);
 	initC(conn, args);
 	return 0;
 }
@@ -87,7 +87,6 @@ void initC(struct conn_info conn, struct rcopy_args args){
 			}
 
 			if(flag == DATA_FLAG){
-				fprintf(stderr, "I'm ready for data!\n");
 				recv_data(conn, recv_buff, recv_len);
 			}
 
@@ -185,7 +184,6 @@ int handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
 		exit(-1);
 
 	}else if(*pdu_seq > *expected){
-		fprintf(stderr, "First data packet out of sequence\n");
 		put_entry(data_buff, data_len, *pdu_seq);
 		rcopy_send_srej(seq, *expected, conn);
 		seq++;

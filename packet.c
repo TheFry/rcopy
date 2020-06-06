@@ -59,8 +59,6 @@ uint8_t get_type(uint8_t *buffer, int len){
 
 
 void server_close(struct conn_info conn){
-   fprintf(stderr, "Closing sockets and streams.\n");
-   fprintf(stderr, "Leaving an orphan :(\nStay safe out there buddy\n");
    fclose(conn.f);
    reset_table();
    close(conn.sock);
@@ -123,7 +121,6 @@ void server_process_rr(uint8_t *buffer, int len, struct conn_info conn){
 
    /* Just RR'd the final packet response from client */
    if(rr - 1 == last_seq){
-      fprintf(stderr, "Client has closed cleanly\n");
       server_close(conn);
    }
 

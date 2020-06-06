@@ -45,7 +45,7 @@ int main(int argc, char *argv[]){
 	double err_rate = 0;
 
 	checkArgs(argc, argv, &portNumber, &err_rate);
-	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_ON, RSEED_ON);
+	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_ON);
 	
 	socketNum = udpServerSetup(portNumber);
 	process_new_clients(socketNum, err_rate);
