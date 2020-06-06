@@ -118,7 +118,6 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 	int type;
 	int srej_sent = 0;
 	uint32_t pdu_seq = ntohl(header->sequence);
-	uint32_t srejs[conn.wsize];
 	handle_first_packet(pdu, len, &pdu_seq, &expected, conn);
 	seq = pdu_seq;
 	pdu_seq = 0;
@@ -141,7 +140,6 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 					rcopy_send_srej(seq, expected, conn);
 					srej_sent = 1;
 				}
-
 			}else{
 				if(type == 1){
 					rcopy_close(conn, ntohl(header->sequence) + 1, seq);
