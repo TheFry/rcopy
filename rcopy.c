@@ -45,6 +45,7 @@ int main (int argc, char *argv[]){
 	struct sockaddr_in6 server;		// Supports 4 and 6 but requires IPv6 struct
 	struct rcopy_args args;
 
+	last_seq = -1;
 	args = checkArgs(argc, argv);
 	conn.f = init_file(args.local);
 	conn.sock = setupUdpClientToServer(&server, args.hostname, args.port);

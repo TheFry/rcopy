@@ -44,6 +44,7 @@ int main(int argc, char *argv[]){
 	int portNumber = 0;
 	double err_rate = 0;
 
+	last_seq = -1;
 	checkArgs(argc, argv, &portNumber, &err_rate);
 	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_OFF, RSEED_ON);
 	
