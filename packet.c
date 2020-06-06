@@ -34,9 +34,9 @@ int rcopy_parse_packet(uint8_t *buff, int len){
          //fprintf(stderr, "Bad packet\n");
          return -1;
       case DATA_FLAG:
-         return 0;
+         return DATA_FLAG;
       case CLOSE_FLAG:
-         return 1;
+         return CLOSE_FLAG;
       default:
          fprintf(stderr, "Not data packet\n");
          //print_buff(buff, len);
@@ -163,10 +163,6 @@ int build_data_pdu(uint8_t *buffer, uint32_t sequence,
 int parse_data_pdu(uint8_t *pdu, uint8_t *data, int pdu_len){
    uint8_t *ptr = pdu + HEADER_LEN;
    int data_len = pdu_len - HEADER_LEN;
-
-   if(data_len <= 0){
-      fprintf(stderr, "Empty data packet :(\n");
-   }
 
    smemset(data, '\0', MAX_BUFF);
    smemcpy(data, ptr, data_len);

@@ -88,14 +88,10 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
  * Don't change current
  */
 void deq(uint32_t rr){
-   int seq_table_index;
 
    if(window_size == 1){
       window_closed = 0;
       return;
-   }
-   if((seq_table_index = get_entry(rr)) == -1){
-      fprintf(stderr, "Error getting entry for deq\n");
    }
 
    /* Sanity check */

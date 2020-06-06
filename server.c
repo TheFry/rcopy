@@ -45,7 +45,7 @@ int main(int argc, char *argv[]){
 	double err_rate = 0;
 
 	checkArgs(argc, argv, &portNumber, &err_rate);
-	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_ON, RSEED_OFF);
+	sendtoErr_init(err_rate, DROP_ON, FLIP_ON, DEBUG_ON, RSEED_ON);
 	
 	socketNum = udpServerSetup(portNumber);
 	process_new_clients(socketNum, err_rate);
@@ -86,7 +86,7 @@ void process_init(uint8_t *buffer, int len,
 	uint8_t type = get_type(buffer, len);
 
 	if(type != INIT_FLAG){
-		fprintf(stderr, "Not an init packet. Ignoring\n\n");
+		//fprintf(stderr, "Not an init packet. Ignoring\n\n");
 		return;
 	}
 
@@ -186,7 +186,6 @@ void send_data(struct conn_info conn){
 
 			/* None recieved, window closed. Resend lowest to prevent deadlock */
 			}else{
-				printf("Timeout\n");
 				resend_lowest(conn);
 				timeout++;
 			}
@@ -201,7 +200,6 @@ void resend_lowest(struct conn_info conn){
 	struct table_entry *entry = get_lowest();
 	int amount = 0;
 
-	fprintf(stderr, "Resending lowest window entry\n");
 	if(entry->pdu_len == 0){
 		return;
 	}
