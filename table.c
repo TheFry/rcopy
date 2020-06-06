@@ -66,16 +66,21 @@ int enq(uint32_t seq, uint8_t *pdu, int pdu_len){
       return -1;
    } 
    
-   if(window_size == 1){
-      window_closed = 1;
-      table_index = 0;
-   }
-   /* clear pdu entry */
    smemset(table[table_index].pdu, '0', pdu_len);
+
+   /* clear pdu entry */
+   
 
    table[table_index].seq = seq;
    table[table_index].pdu_len = pdu_len;
    smemcpy(table[table_index].pdu, pdu, pdu_len);
+
+   if(window_size == 1){
+      window_closed = 1;
+      table_index = 0;
+      return 0;
+   }
+   
    table_index = (table_index + 1) % window_size;
    current += 1;
 
