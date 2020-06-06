@@ -36,7 +36,7 @@ void rcopy_send_rr(uint32_t seq, uint32_t rr, struct conn_info conn);
 void rcopy_send_srej(uint32_t seq, uint32_t expected, struct conn_info conn);
 void rcopy_write_data(uint8_t *buffer, int len, struct conn_info conn);
 uint32_t write_window(uint32_t expected, struct conn_info conn);
-void handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
+int handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
 												uint32_t *expected, struct conn_info conn);
 int check_srejs(uint32_t srej, uint32_t *srejs, uint32_t wsize);
 
@@ -114,21 +114,22 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 	uint32_t expected = 0;
 	init_table(conn.wsize);
 	struct pdu_header *header = (struct pdu_header *)pdu;
-	int done = 0;
+	uint32_t done = 0;
 	int type;
 	int srej_sent = 0;
 	uint32_t pdu_seq = ntohl(header->sequence);
-	uint32_t srejs[conn.wsize];
-	handle_first_packet(pdu, len, &pdu_seq, &expected, conn);
+
+	srej_sent = handle_first_packet(pdu, len, &pdu_seq, &expected, conn);
 	seq = pdu_seq;
 	pdu_seq = 0;
 
-	while(!done){
+	while(1){
 		if(pollCall(10000) == conn.sock){
 			len = safeRecvfrom(conn.sock, pdu, MAX_BUFF,
 									 0, conn.addr, &conn.addr_len);
 			/* bad pdu */
 			if((type = rcopy_parse_packet(pdu, len)) == -1){ continue; }
+			if(type == CLOSE_FLAG){ done = ntohl(header->sequence) + 1; }
 			data_len = parse_data_pdu(pdu, data_buff, len);
 			pdu_seq = ntohl(header->sequence);
 			
@@ -143,13 +144,13 @@ void recv_data(struct conn_info conn, uint8_t *pdu, int len){
 				}
 
 			}else{
-				if(type == CLOSE_FLAG){
-					rcopy_close(conn, ntohl(header->sequence) + 1, seq);
-				}
 				srej_sent = 0;
 				sfwrite(data_buff, 1, data_len, conn.f);
 				expected++;
 				expected = write_window(expected, conn);
+				if(expected == done){
+					rcopy_close(conn, expected, seq);
+				}
 				rcopy_send_rr(seq, expected, conn);
 				seq++;
 			}
@@ -172,7 +173,7 @@ int check_srejs(uint32_t srej, uint32_t *srejs, uint32_t wsize){
 	return 0;
 }
 
-void handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
+int handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
 												uint32_t *expected, struct conn_info conn){
 	uint32_t seq = 1;
 	uint8_t data_buff[MAX_BUFF] = "";
@@ -180,19 +181,21 @@ void handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
 
 	if(*pdu_seq < *expected){
 		fprintf(stderr, "Initial seq is less than 1\n");
+		exit(-1);
 
 	}else if(*pdu_seq > *expected){
-		if(!put_entry(pdu, data_len, *pdu_seq)){
-			rcopy_send_rr(*expected, seq, conn);
-		}
-	}else{
-		fprintf(stderr, "First packet out of sequence\n");
-		sfwrite(data_buff, 1, data_len, conn.f);
-		rcopy_send_rr(seq, *expected, conn);
-		seq++;
-		*pdu_seq = seq;
+		fprintf(stderr, "First data packet out of sequence\n");
+		put_entry(pdu, data_len, *pdu_seq);
+		rcopy_send_srej(seq, *expected, conn);
+		return 1;
 	}
 
+	*expected += 1;
+	sfwrite(data_buff, 1, data_len, conn.f);
+	rcopy_send_rr(seq, *expected, conn);
+	seq++;
+	*pdu_seq = seq;
+	return 0;
 }
 
 
