@@ -73,7 +73,7 @@ void initC(struct conn_info conn, struct rcopy_args args){
 	dataLen = build_init_pdu(pdu, args.remote, args.wsize, args.bs);
 
 	safeSendto(conn.sock, pdu, dataLen, 0, conn.addr, conn.addr_len);
-	i = 0;
+	i = 1;
 
 	/* Send filename 10 times max */
 	while(i < 10){
