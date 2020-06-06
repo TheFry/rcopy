@@ -6,7 +6,7 @@
 #include "checksum.h"
 #include "table.h"
 
-int user_last_seq = -1;  /* Server sets this as the seq number of the eof pdu */
+int user_last_seq;  /* Server sets this as the seq number of the eof pdu */
 
 void server_parse_packet(uint8_t *buffer, int len, struct conn_info conn){
    uint8_t flag = get_type(buffer, len);

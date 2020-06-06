@@ -178,7 +178,7 @@ int handle_first_packet(uint8_t *pdu, int pdu_len, uint32_t *pdu_seq,
 	uint32_t seq = 1;
 	uint8_t data_buff[MAX_BUFF] = "";
 	int data_len = parse_data_pdu(pdu, data_buff, pdu_len);
-
+	user_last_seq = -1;
 	if(*pdu_seq < *expected){
 		fprintf(stderr, "Initial seq is less than 1\n");
 		exit(-1);
